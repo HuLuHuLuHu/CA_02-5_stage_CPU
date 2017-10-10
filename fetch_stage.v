@@ -13,12 +13,12 @@ module fetch_stage(
 	
 	always @(posedge clk) begin
 		if(resetn == 0) begin
-		fe_pc <= reset_address;
-		fe_inst <= 32'b0;
+			fe_pc <= reset_address;
+			fe_inst <= 32'b0;
 		end
 		else  begin
-		fe_inst <= inst_sram_rdata;
-		fe_pc <= inst_sram_addr;
+			fe_pc <= inst_sram_addr;
+			fe_inst <= inst_sram_rdata;
 		end
 	end
 

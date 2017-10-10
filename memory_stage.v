@@ -9,18 +9,14 @@ module memory_stage(
     input  wire [3:0] de_dramwen,
     input  wire  de_dramen,
     output wire [31:0] data_sram_addr,
+    output wire [31:0] data_sram_wdata,
     output wire [3:0]  data_sram_wen,
-    output wire data_sram_en,
-    output wire [31:0] data_sram_wdata
-   // output wire [31:0] data_sram_wdata
-            //mem_stage final result
-
+    output wire data_sram_en
 );
 
-assign data_sram_en = de_dramen;
-assign data_sram_wen = de_dramwen;
-assign data_sram_wdata = alu_result;
-///////assign data_sram_wdata = exe_dramwdata;
 assign data_sram_addr = alu_result;
+assign data_sram_wdata = rt_reg_content;
+assign data_sram_wen = de_dramwen;
+assign data_sram_en = de_dramen;
 
 endmodule //memory_stage

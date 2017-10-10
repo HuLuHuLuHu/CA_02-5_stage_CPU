@@ -30,11 +30,8 @@ alu alu0
     );
 always @(posedge clk) begin
     alu_result_reg <= alu_result;
- //   exe_dramwen <= de_dramwen;
-//    exe_dramen <= de_dramen;
     exe_wen <= de_wen;
     exe_regsrc <= de_regsrc;
-//    exe_dramwdata <= rt_reg_content;
-    exe_is_load <= de_is_load;
+    exe_is_load <= de_is_load;//for future write back source selection
 end
 endmodule //execute_stage

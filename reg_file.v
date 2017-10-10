@@ -11,7 +11,7 @@
 
 module reg_file(
 	input clk,
-	input rst,
+	input rstn,
 	input [`ADDR_WIDTH - 1:0] waddr,
 	input [`ADDR_WIDTH - 1:0] raddr1,
 	input [`ADDR_WIDTH - 1:0] raddr2,
@@ -28,7 +28,7 @@ integer count;
 always @ (posedge clk)
  begin 
 
-        if(rst)
+        if(rstn==0)
              for(count =0 ; count<`DATA_WIDTH ; count=count+1)
               register[count] <= 0;
          else if (wen)

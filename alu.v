@@ -61,7 +61,7 @@ case (ALUop)
     Overflow = CarryOut ^ carryout_low;
     Zero = (Result == 0) ? 1 :  0;
     end
- 
+   
     SLT:
     begin
     {CarryOut, Result} = A + ~B +1;
