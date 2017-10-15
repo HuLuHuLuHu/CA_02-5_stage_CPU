@@ -17,7 +17,9 @@ module PC_calculator(
 					//output signals
 					output 	   [31:0] next_pc,
 					output     [31:0] current_pc,
-					output inst_sram_en//now it is always 1
+					output inst_sram_en,//now it is always 1
+					//stall
+					input stall
     );
 
 		//define the type of branch inst
@@ -43,6 +45,7 @@ module PC_calculator(
 						 (is_b & b_taken)? b_address: //B
 						 (is_jr)?		rdata1://JR
 						 (is_j)?		j_address:  //J
+						 (stall)?		inst_sram_addr: //stall
 						 normal_address; //+4
 
 		assign inst_sram_en = 1;

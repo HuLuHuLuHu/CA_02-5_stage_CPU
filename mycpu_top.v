@@ -47,7 +47,15 @@ wire [4:0] exe_regsrc;
 wire exe_wen;
 wire [31:0] reg_rdata1,reg_rdata2,reg_wdata;
 wire [4:0] reg_raddr1,reg_raddr2,reg_waddr;
-wire reg_wen;
+wire        reg_wen;
+wire [4:0] forward_exe_rs;
+wire [4:0] forward_exe_rt;
+wire [4:0] forward_mem_rt;
+wire forward_wb_wen;
+wire [4:0] forward_wb_regsrc;
+wire [31:0] forward_wb_wdata;
+wire stall;
+wire stall_is_b;
 
 // inst_sram is now a ROM
 assign inst_sram_wen   = 4'b0;
@@ -72,7 +80,9 @@ PC_calculator PC_calculator
     //outputs
     .inst_sram_en   (inst_sram_en   ),
     .next_pc        (inst_sram_addr ),
-    .current_pc		(current_pc     )
+    .current_pc		(current_pc     ),
+    //stall
+    .stall          (stall)
     );
 
 
@@ -86,7 +96,10 @@ fetch_stage fetch_stage
     .inst_sram_addr (current_pc     ), 
     //outputs                              
     .fe_pc          (fe_pc          ), 
-    .fe_inst        (fe_inst        )  
+    .fe_inst        (fe_inst        ),
+    //stall
+    .stall          (stall),
+    .stall_is_b     (stall_is_b)
     );
 
 
@@ -117,8 +130,14 @@ decode_stage de_stage
     .de_dramwen     (de_dramwen     ), 
     .de_wen         (de_wen         ), 
     .de_regsrc      (de_regsrc      ),
-    .de_is_load     (de_is_load     )
-
+    .de_is_load     (de_is_load     ),
+    //forwarding
+    .forward_exe_rs (forward_exe_rs ),
+    .forward_exe_rt (forward_exe_rt ),
+    .forward_mem_rt (forward_mem_rt ),
+    //stall
+    .stall          (stall),
+    .stall_is_b     (stall_is_b)
     );
 
 
@@ -132,6 +151,12 @@ execute_stage exe_stage
     .de_alusrc1     (de_alusrc1     ), 
     .de_alusrc2     (de_alusrc2     ), 
     .alu_result     (alu_result     ), 
+    //forward
+    .forward_exe_rs (forward_exe_rs ),
+    .forward_exe_rt (forward_exe_rt ),
+    .forward_wb_wen (forward_wb_wen    ),
+    .forward_wb_regsrc(forward_wb_regsrc),
+    .forward_wb_wdata(forward_wb_wdata),
     //just pass to next stage
     .de_wen         (de_wen         ), 
     .de_regsrc      (de_regsrc      ),
@@ -158,7 +183,12 @@ memory_stage mem_stage
     .data_sram_addr     (data_sram_addr ),
     .data_sram_wdata    (data_sram_wdata),
     .data_sram_wen      (data_sram_wen  ),
-    .data_sram_en       (data_sram_en   )
+    .data_sram_en       (data_sram_en   ),
+    //forwarding
+    .forward_mem_rt     (forward_mem_rt ),
+    .forward_wb_wen     (wb_wen),
+    .forward_wb_regsrc  (wb_regsrc),
+    .forward_wb_wdata   (wb_regwdata)
     );
 
 wire wb_wen;
@@ -179,7 +209,12 @@ writeback_stage wb_stage
     .wb_wen         (wb_wen          ),
     .wb_regsrc      (wb_regsrc       ), 
     .wb_regwdata    (wb_regwdata     ) 
+    //forward
+    .forward_wb_wen    (forward_wb_wen),
+    .forward_wb_regsrc (forward_wb_regsrc),
+    .forward_wb_wdata(forward_wb_wdata)
     );
+
 reg [31:0] de_pc;
 reg [31:0] exe_pc;
 always @ (posedge clk)

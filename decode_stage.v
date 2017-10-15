@@ -26,8 +26,14 @@ module decode_stage(
     output reg [3:0] de_dramwen,
 //wb
     output reg de_wen,
-    output reg [4:0] de_regsrc
-
+    output reg [4:0] de_regsrc,
+//forwarding
+    output reg [4:0] forward_exe_rs,
+    output reg [4:0] forward_exe_rt,
+    output reg [4:0] forward_mem_rt,
+//stall
+    output wire stall,
+    input  wire stall_is_b
 );
 
 
@@ -97,6 +103,35 @@ always @(posedge clk) begin
     rt_reg_content <= rdata2;
 end
 
+//stall for lw
+wire lw_stall;
+reg [4:0] stall_lw_rt;
+wire [4:0] stall_rs;
+wire [4:0] stall_rt;
+assign stall_rs = fe_inst[25:21];//rs
+assign stall_rt = (OP == IS_R)? fe_inst[20:16] : 0;//rt
+always @(posedge clk) stall_lw_rt <= fe_inst[20:16];
+assign lw_stall = (de_dramen & stall_lw_rt != 0 &
+                (stall_lw_rt == stall_rs | stall_lw_rt == stall_rt))? 1:0;
+//stall for b-type
+wire b_stall;
+reg [1:0] stall_state;
+always @(posedge clk) begin
+    if(~resetn) stall_state <= 2'b00;
+    else begin
+        case(stall_state)
+        2'b00:begin
+                if(stall_is_b)  stall_state <= 2'b01;
+                else            stall_state <= 2'b00;
+              end
+        2'b01:stall_state <= 2'b10;
+        2'b10:stall_state <= 2'b11;
+        2'b11:stall_state <= 2'b00;
+    end
+end
+assign b_stall = (stall_state == 2'b00) 0:1;
+assign stall = b_stall | lw_stall;
+
 //alu sources and control signals
 parameter alu_AND  = 4'b0000;
 parameter alu_OR   = 4'b0001;
@@ -162,9 +197,9 @@ wire wen_temp;
 wire [4:0] regsrc_temp;
 wire de_is_load_temp;
 assign de_is_load_temp = (OP==LW)? 1:0;
-assign wen_temp = (OP==IS_R|OP==ADDIU|OP==ADDI
-                   |OP==SLTI|OP==SLTIU|OP==LW|
-                   OP==LUI|OP==JAL|OP==ANDI|OP==ORI|OP==XORI)? 1:0;
+assign wen_temp = ((OP==IS_R|OP==ADDIU|OP==ADDI|
+                   OP==SLTI|OP==SLTIU|OP==LW|
+                   OP==LUI|OP==JAL|OP==ANDI|OP==ORI|OP==XORI)? 1:0) & (~stall);
 assign regsrc_temp = (OP==IS_R)? fe_inst[15:11] : //rd
                      (OP==LW|OP==ADDIU|OP==ADDI|OP==SLTI|OP==SLTIU
                      |OP==LUI|OP==ANDI|OP==ORI|OP==XORI)? fe_inst[20:16]: //rt
@@ -180,10 +215,23 @@ end
 wire [3:0] dramwen_temp;
 wire dramen_temp;
 assign dramen_temp = (OP==LW|OP==SW)? 1:0;
-assign dramwen_temp = (OP==SW)? 4'b1111:4'b0;
+assign dramwen_temp = ((OP==SW)? 4'b1111:4'b0) & (~stall);
 always @(posedge clk) begin
     de_dramwen <= dramwen_temp;
     de_dramen <= dramen_temp;
+end
+
+//forwarding
+wire [4:0] forward_exe_rs_temp;
+wire [4:0] forward_exe_rt_temp;
+wire [4:0] forward_mem_rt_temp;
+assign forward_exe_rs_temp = (alusrc1_temp == rdata1)? raddr1:0; //rs
+assign forward_mem_rt_temp = (alusrc2_temp == rdata2)? raddr2:0; //rt
+assign forward_mem_rt_temp = (OP == SW)? raddr2:0; //rt
+always @(posedge clk) begin
+    forward_exe_rs <= forward_exe_rs_temp;
+    forward_exe_rt <= forward_exe_rt_temp;
+    forward_mem_rt <= forward_mem_rt_temp;
 end
 
 
