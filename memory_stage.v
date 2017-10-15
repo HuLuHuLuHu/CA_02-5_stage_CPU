@@ -21,8 +21,8 @@ module memory_stage(
 );
 //forwarding
 wire write_from_wb;
-assign write_from_wb = (forward_wb_wen & forward_wb_regsrc !=0 &
-                        forward_mem_rt == forward_wb_regsrc) 1:0;
+assign write_from_wb = (forward_wb_wen & forward_wb_regsrc !== 5'd0 &
+                        forward_mem_rt == forward_wb_regsrc)? 1:0;
 assign data_sram_wdata = (write_from_wb)? forward_wb_wdata:rt_reg_content;
 assign data_sram_addr = alu_result;
 assign data_sram_wen = de_dramwen;

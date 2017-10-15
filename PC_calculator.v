@@ -28,7 +28,7 @@ module PC_calculator(
 		wire b_taken;//b is taken or not
 		wire [31:0] b_result;//the result of b-type inst
 		assign b_result = rdata1 + ~rdata2 +1;
-		assign b_taken = (b_type==type_BNE & b_result != 0)? 1:
+		assign b_taken = (b_type==type_BNE & b_result !== 0)? 1:
 						 (b_type==type_BEQ & b_result == 0)? 1:
 						 0;
 

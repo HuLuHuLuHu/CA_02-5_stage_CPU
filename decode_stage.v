@@ -70,7 +70,6 @@ parameter NOR   = 6'b100111;
 parameter XOR   = 6'b100110;
 parameter SRA   = 6'b000011;
 parameter SLLV  = 6'b000100;
-parameter SRA   = 6'b000011;
 parameter SRL   = 6'b000010;
 parameter SRAV  = 6'b000111;
 parameter SRLV  = 6'b000110;
@@ -111,7 +110,7 @@ wire [4:0] stall_rt;
 assign stall_rs = fe_inst[25:21];//rs
 assign stall_rt = (OP == IS_R)? fe_inst[20:16] : 0;//rt
 always @(posedge clk) stall_lw_rt <= fe_inst[20:16];
-assign lw_stall = (de_dramen & stall_lw_rt != 0 &
+assign lw_stall = (de_dramen & stall_lw_rt !== 5'd0 &
                 (stall_lw_rt == stall_rs | stall_lw_rt == stall_rt))? 1:0;
 //stall for b-type
 wire b_stall;
@@ -127,9 +126,10 @@ always @(posedge clk) begin
         2'b01:stall_state <= 2'b10;
         2'b10:stall_state <= 2'b11;
         2'b11:stall_state <= 2'b00;
+        endcase
     end
 end
-assign b_stall = (stall_state == 2'b00) 0:1;
+assign b_stall = (stall_state == 2'b00)? 0:1;
 assign stall = b_stall | lw_stall;
 
 //alu sources and control signals
@@ -226,7 +226,7 @@ wire [4:0] forward_exe_rs_temp;
 wire [4:0] forward_exe_rt_temp;
 wire [4:0] forward_mem_rt_temp;
 assign forward_exe_rs_temp = (alusrc1_temp == rdata1)? raddr1:0; //rs
-assign forward_mem_rt_temp = (alusrc2_temp == rdata2)? raddr2:0; //rt
+assign forward_exe_rt_temp = (alusrc2_temp == rdata2)? raddr2:0; //rt
 assign forward_mem_rt_temp = (OP == SW)? raddr2:0; //rt
 always @(posedge clk) begin
     forward_exe_rs <= forward_exe_rs_temp;

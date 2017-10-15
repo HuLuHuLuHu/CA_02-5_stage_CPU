@@ -56,6 +56,9 @@ wire [4:0] forward_wb_regsrc;
 wire [31:0] forward_wb_wdata;
 wire stall;
 wire stall_is_b;
+wire wb_wen;
+wire [4:0] wb_regsrc;
+wire [31:0] wb_regwdata;
 
 // inst_sram is now a ROM
 assign inst_sram_wen   = 4'b0;
@@ -191,9 +194,6 @@ memory_stage mem_stage
     .forward_wb_wdata   (wb_regwdata)
     );
 
-wire wb_wen;
-wire [4:0] wb_regsrc;
-wire [31:0] wb_regwdata;
 //wb
 writeback_stage wb_stage
     (
@@ -208,7 +208,7 @@ writeback_stage wb_stage
     //outputs, no registers as well                      
     .wb_wen         (wb_wen          ),
     .wb_regsrc      (wb_regsrc       ), 
-    .wb_regwdata    (wb_regwdata     ) 
+    .wb_regwdata    (wb_regwdata     ),
     //forward
     .forward_wb_wen    (forward_wb_wen),
     .forward_wb_regsrc (forward_wb_regsrc),

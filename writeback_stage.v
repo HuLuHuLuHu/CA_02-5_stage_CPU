@@ -10,11 +10,11 @@ module writeback_stage(
     input  wire       exe_is_load,
     output wire       wb_wen,
     output wire       [4:0] wb_regsrc,
-    output wire       [31:0] wb_regwdata
+    output wire       [31:0] wb_regwdata,
     //forwarding
-    output reg        forward_wb_wen;
-    output reg        [4:0] forward_wb_regsrc;
-    output reg        [31:0] forward_wb_wdata;
+    output reg        forward_wb_wen,
+    output reg        [4:0] forward_wb_regsrc,
+    output reg        [31:0] forward_wb_wdata
 );
 
 

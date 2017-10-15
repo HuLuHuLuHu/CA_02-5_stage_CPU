@@ -17,13 +17,13 @@ module execute_stage(
     input wire [4:0] de_regsrc,
     output reg exe_wen,
     output reg [4:0] exe_regsrc,
-    output reg exe_is_load
+    output reg exe_is_load,
     
     input  wire [4:0] forward_exe_rs,
     input  wire [4:0] forward_exe_rt,
     input  wire  forward_wb_wen,
-    input  wire [4:0] forward_wb_regsrc;
-    input  wire [31:0] forward_wb_data
+    input  wire [4:0] forward_wb_regsrc,
+    input  wire [31:0] forward_wb_wdata
 );
 
 wire [31:0] alu_src1;
@@ -34,35 +34,35 @@ wire src2_from_mem;
 wire src2_from_wb;
 //forwarding in EXE stage
 //forwarding control signals
-assign src1_from_mem = (exe_wen & exe_regsrc != 0 & 
+assign src1_from_mem = (exe_wen & exe_regsrc !== 5'd0 & 
                         forward_exe_rs == exe_regsrc)? 1:0;
 
-assign src2_from_mem = (exe_wen & exe_regsrc != 0 & 
+assign src2_from_mem = (exe_wen & exe_regsrc !== 5'd0 & 
                         forward_exe_rt == exe_regsrc)? 1:0;
 
-assign src1_from_wb  = (forward_wb_wen & forward_wb_regsrc != 0 &
-                        forward_exe_rs != exe_regsrc &
+assign src1_from_wb  = (forward_wb_wen & forward_wb_regsrc !== 5'd0 &
+                        forward_exe_rs !== exe_regsrc &
                         forward_exe_rs == forward_wb_regsrc)? 1:0;
 
-assign src2_from_wb  = (forward_wb_wen & forward_wb_regsrc != 0 &
-                        forward_exe_rt != exe_regsrc &
+assign src2_from_wb  = (forward_wb_wen & forward_wb_regsrc !== 5'd0 &
+                        forward_exe_rt !== exe_regsrc &
                         forward_exe_rt == forward_wb_regsrc)? 1:0;
 
 
 //mux
 assign alu_src1 = (src1_from_mem)? alu_result_reg:
-                  (src1_from_wb)?  forward_wb_data:
+                  (src1_from_wb)?  forward_wb_wdata:
                   de_alusrc1;
                   
 assign alu_src2 = (src2_from_mem)? alu_result_reg:
-                  (src2_from_wb)?  forward_wb_data:
+                  (src2_from_wb)?  forward_wb_wdata:
                   de_alusrc2;
 
 alu alu0 
     (
     .ALUop  (de_aluop     ), 
-    .A  ( alusrc1    ), 
-    .B  ( alusrc2    ), 
+    .A  ( alu_src1    ), 
+    .B  ( alu_src2    ), 
     .Result ( alu_result    ) 
     );
 always @(posedge clk) begin
