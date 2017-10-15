@@ -18,10 +18,12 @@ parameter SUB  = 4'b0011;
 parameter SLT  = 4'b0100;
 parameter SLTU = 4'b0101;
 parameter SLL  = 4'b0110;
-parameter SLR  = 4'b0111;
+parameter SRL  = 4'b0111;
 parameter SAL  = 4'b1000;
-parameter SAR  = 4'b1001;
+parameter SRA  = 4'b1001;
 parameter LUI  = 4'b1010;
+parameter XOR  = 4'b1011;
+parameter NOR  = 4'b1100;
 
 reg carryout_low;
 reg [`DATA_WIDTH - 2:0] result_low;
@@ -84,15 +86,15 @@ case (ALUop)
     
     SLL:
     begin
-    Result = B<<A;
+    Result = B<<A[4:0];
     Zero = 0;
     CarryOut = 0;
     Overflow = 0;
     end
 
-    SLR:
+    SRL:
     begin
-    Result = B>>A;
+    Result = B>>A[4:0];
     Zero = 0;
     CarryOut = 0;
     Overflow = 0;
@@ -106,9 +108,9 @@ case (ALUop)
     Overflow = 0;
     end
 
-    SAR:
+    SRA:
     begin
-   // Result = {{A{B[31]}},B[31:A]};
+    Result = B>>>A;
     Zero = 0;
     CarryOut = 0;
     Overflow = 0;
@@ -118,6 +120,22 @@ case (ALUop)
     begin
     Result = {B[15:0],16'd0};
     Zero = 0;
+    CarryOut = 0;
+    Overflow = 0;
+    end
+
+    XOR:
+    begin
+    Result = A ^ B;
+    Zero = (Result==0)? 1:0;
+    CarryOut = 0;
+    Overflow = 0;
+    end
+
+    NOR:
+    begin
+    Result = A ^ ~B;
+    Zero = (Result==0)? 1:0;
     CarryOut = 0;
     Overflow = 0;
     end

@@ -44,6 +44,9 @@ parameter SLTIU = 6'b001011;
 parameter LW    = 6'b100011;
 parameter SW    = 6'b101011;
 parameter LUI   = 6'b001111;
+parameter ANDI  = 6'b001100;
+parameter ORI   = 6'b001101;
+parameter XORI  = 6'b001110;
 
 //define r-type func
 parameter IS_R  = 6'b000000;
@@ -56,6 +59,17 @@ parameter SLL   = 6'b000000;
 parameter JR    = 6'b001000;
 parameter AND   = 6'b100100;
 parameter SLTU  = 6'b101011;
+parameter SUBU  = 6'b100011;
+parameter NOR   = 6'b100111;
+parameter XOR   = 6'b100110;
+parameter SRA   = 6'b000011;
+parameter SLLV  = 6'b000100;
+parameter SRA   = 6'b000011;
+parameter SRL   = 6'b000010;
+parameter SRAV  = 6'b000111;
+parameter SRLV  = 6'b000110;
+
+
 
 wire [5:0] OP;
 wire [5:0] FUNC;
@@ -91,10 +105,13 @@ parameter alu_SUB  = 4'b0011;
 parameter alu_SLT  = 4'b0100;
 parameter alu_SLTU = 4'b0101;
 parameter alu_SLL  = 4'b0110;
-parameter alu_SLR  = 4'b0111;
+parameter alu_SRL  = 4'b0111;
 parameter alu_SAL  = 4'b1000;
-parameter alu_SAR  = 4'b1001;
+parameter alu_SRA  = 4'b1001;
 parameter alu_LUI  = 4'b1010;
+parameter alu_XOR  = 4'b1011;
+parameter alu_NOR  = 4'b1100;
+
 wire [3:0] aluop_temp;
 wire [31:0] alusrc1_temp;
 wire [31:0] alusrc2_temp;
@@ -111,17 +128,23 @@ assign aluop_temp = (OP==ADDI|OP==ADDIU|
                      OP==JAL)? alu_ADD :
                     (OP==IS_R&FUNC==SLT|OP==SLTI)? alu_SLT :
                     (OP==SLTIU|OP==IS_R&FUNC==SLTU)? alu_SLTU :
-                    (OP==IS_R&FUNC==SUB)? alu_SUB :
+                    (OP==IS_R&FUNC==SUB|OP==IS_R&FUNC==SUBU)? alu_SUB :
                     (OP==LUI)? alu_LUI :
-                    (OP==IS_R&FUNC==OR)? alu_OR :
-                    (OP==IS_R&FUNC==AND)? alu_AND :
-                    (OP==IS_R&FUNC==SLL)? alu_SLL : 
+                    (OP==IS_R&FUNC==OR|OP==ORI)? alu_OR :
+                    (OP==IS_R&FUNC==AND|OP==ANDI)? alu_AND :
+                    (OP==IS_R&FUNC==SLL|OP==IS_R&FUNC==SLLV)? alu_SLL : 
+                    (OP==IS_R&FUNC==XOR|OP==XORI)? alu_XOR :
+                    (OP==IS_R&FUNC==NOR)? alu_NOR :
+                    (OP==IS_R&FUNC==SRA|OP==IS_R&FUNC==SRAV)? alu_SRA :
+                    (OP==IS_R&FUNC==SRL|OP==IS_R&FUNC==SRLV)? alu_SRL :
                      4'b0000;
-assign alusrc1_temp = (OP==IS_R&FUNC==SLL)? sa_extend :
+assign alusrc1_temp = (OP==IS_R&FUNC==SLL|OP==IS_R&FUNC==SRA|
+                       OP==IS_R&FUNC==SRL)? sa_extend :
                       (OP==JAL)? current_pc :
                        rdata1;
 assign alusrc2_temp = (OP==SLTIU|OP==ADDIU|OP==LUI)? unsigned_extend :
-                      (OP==SW|OP==LW|OP==SLTI|OP==ADDI)? signed_extend :
+                      (OP==SW|OP==LW|OP==SLTI|OP==ADDI|OP==ANDI|
+                       OP==ORI|OP==XORI)? signed_extend :
                       (OP==IS_R)? rdata2 :
                       (OP==JAL)? 32'd8 :
                       32'b0; 
@@ -141,9 +164,10 @@ wire de_is_load_temp;
 assign de_is_load_temp = (OP==LW)? 1:0;
 assign wen_temp = (OP==IS_R|OP==ADDIU|OP==ADDI
                    |OP==SLTI|OP==SLTIU|OP==LW|
-                   OP==LUI|OP==JAL)? 1:0;
+                   OP==LUI|OP==JAL|OP==ANDI|OP==ORI|OP==XORI)? 1:0;
 assign regsrc_temp = (OP==IS_R)? fe_inst[15:11] : //rd
-                     (OP==LW|OP==ADDIU|OP==ADDI|OP==SLTI|OP==SLTIU|OP==LUI)? fe_inst[20:16]: //rt
+                     (OP==LW|OP==ADDIU|OP==ADDI|OP==SLTI|OP==SLTIU
+                     |OP==LUI|OP==ANDI|OP==ORI|OP==XORI)? fe_inst[20:16]: //rt
                      (OP==JAL)? 5'b11111:
                      5'b0;
 always @(posedge clk) begin
