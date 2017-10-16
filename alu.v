@@ -134,7 +134,7 @@ case (ALUop)
 
     NOR:
     begin
-    Result = A ^ ~B;
+    Result = ~(A | B);
     Zero = (Result==0)? 1:0;
     CarryOut = 0;
     Overflow = 0;

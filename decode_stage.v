@@ -155,7 +155,7 @@ wire [31:0] unsigned_extend;
 wire [31:0] sa_extend;
 assign sa_extend = {27'b0,fe_inst[10:6]};
 assign signed_extend = {{16{fe_inst[15]}},fe_inst[15:0]};
-assign unsigned_extend =  {{16{fe_inst[15]}},fe_inst[15:0]};
+assign unsigned_extend =  {16'b0,fe_inst[15:0]};
 assign aluop_temp = (OP==ADDI|OP==ADDIU|
                      OP==LW|OP==SW|
                      OP==IS_R&FUNC==ADD|
@@ -177,9 +177,9 @@ assign alusrc1_temp = (OP==IS_R&FUNC==SLL|OP==IS_R&FUNC==SRA|
                        OP==IS_R&FUNC==SRL)? sa_extend :
                       (OP==JAL)? current_pc :
                        rdata1;
-assign alusrc2_temp = (OP==SLTIU|OP==ADDIU|OP==LUI)? unsigned_extend :
+assign alusrc2_temp = (OP==ORI)? unsigned_extend :
                       (OP==SW|OP==LW|OP==SLTI|OP==ADDI|OP==ANDI|
-                       OP==ORI|OP==XORI)? signed_extend :
+                       OP==XOR|OP==SLTIU|OP==ADDIU|OP==LUI)? signed_extend :
                       (OP==IS_R)? rdata2 :
                       (OP==JAL)? 32'd8 :
                       32'b0; 
