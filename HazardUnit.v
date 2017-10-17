@@ -19,10 +19,10 @@ wire exe_forward;
 wire mem_forward;
 
 assign exe_forward = (exe_wen & exe_regsrc !== 0 &
-					(rs_src == exe_regsrc | rt_src == exe_regsrc));
+					(forward_rs == exe_regsrc | forward_rt == exe_regsrc));
 
 assign mem_forward = (mem_wen & mem_regsrc !== 0 &
-					(rs_src == mem_regsrc | rt_src == mem_regsrc));
+					(forward_rs == mem_regsrc | forward_rt == mem_regsrc));
 
 assign rs_data = (exe_forward)? exe_wdata:
 				 (mem_forward)? mem_wdata:
@@ -33,6 +33,6 @@ assign rt_data = (exe_forward)? exe_wdata:
 				 de_rt_data;
 
 assign stall = (exe_memread & exe_regsrc !== 0 &
-				(rs_src == exe_regsrc | rt_src == exe_regsrc));
+				(forward_rs == exe_regsrc | forward_rt == exe_regsrc));
 
 endmodule

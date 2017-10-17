@@ -10,7 +10,7 @@ module writeback_stage(
     input  wire       exe_is_load,
     output wire       wb_wen,
     output wire       [4:0] wb_regsrc,
-    output wire       [31:0] wb_regwdata,
+    output wire       [31:0] wb_regwdata
 );
 
 

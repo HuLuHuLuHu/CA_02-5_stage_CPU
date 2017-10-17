@@ -48,6 +48,9 @@ wire exe_wen;
 wire [31:0] reg_rdata1,reg_rdata2,reg_wdata;
 wire [4:0] reg_raddr1,reg_raddr2,reg_waddr;
 wire        reg_wen;
+wire wb_wen;
+wire [4:0] wb_regsrc;
+wire [31:0] wb_regwdata;
 wire [4:0] forward_rs;
 wire [4:0] forward_rt;
 wire [31:0] rs_data;
@@ -143,10 +146,7 @@ decode_stage de_stage
     .de_wen         (de_wen         ), 
     .de_regsrc      (de_regsrc      ),
     .de_is_load     (de_is_load     ),
-    //forwarding
-    .forward_exe_rs (forward_exe_rs ),
-    .forward_exe_rt (forward_exe_rt ),
-    .forward_mem_rt (forward_mem_rt ),
+
     //stall
     .stall          (stall),
     .forward_rs     (forward_rs),
@@ -190,7 +190,7 @@ memory_stage mem_stage
     .data_sram_addr     (data_sram_addr ),
     .data_sram_wdata    (data_sram_wdata),
     .data_sram_wen      (data_sram_wen  ),
-    .data_sram_en       (data_sram_en   ),
+    .data_sram_en       (data_sram_en   )
     );
 
 //wb
@@ -207,7 +207,7 @@ writeback_stage wb_stage
     //outputs, no registers as well                      
     .wb_wen         (wb_wen          ),
     .wb_regsrc      (wb_regsrc       ), 
-    .wb_regwdata    (wb_regwdata     ),
+    .wb_regwdata    (wb_regwdata     )
     );
 
 reg [31:0] de_pc;

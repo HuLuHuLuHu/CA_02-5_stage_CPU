@@ -17,7 +17,7 @@ module execute_stage(
     input wire [4:0] de_regsrc,
     output reg exe_wen,
     output reg [4:0] exe_regsrc,
-    output reg exe_is_load,
+    output reg exe_is_load
 
 );
 
