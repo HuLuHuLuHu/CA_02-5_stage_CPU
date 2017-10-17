@@ -48,18 +48,11 @@ wire exe_wen;
 wire [31:0] reg_rdata1,reg_rdata2,reg_wdata;
 wire [4:0] reg_raddr1,reg_raddr2,reg_waddr;
 wire        reg_wen;
-wire [4:0] forward_exe_rs;
-wire [4:0] forward_exe_rt;
-wire [4:0] forward_mem_rt;
-wire forward_wb_wen;
-wire [4:0] forward_wb_regsrc;
-wire [31:0] forward_wb_wdata;
+wire [4:0] forward_rs;
+wire [4:0] forward_rt;
+wire [31:0] rs_data;
+wire [31:0] rt_data;
 wire stall;
-wire stall_is_b;
-wire wb_wen;
-wire [4:0] wb_regsrc;
-wire [31:0] wb_regwdata;
-
 // inst_sram is now a ROM
 assign inst_sram_wen   = 4'b0;
 assign inst_sram_wdata = 32'b0;
@@ -101,11 +94,27 @@ fetch_stage fetch_stage
     .fe_pc          (fe_pc          ), 
     .fe_inst        (fe_inst        ),
     //stall
-    .stall          (stall),
-    .stall_is_b     (stall_is_b)
+    .stall          (stall)
     );
 
-
+//Hazard Unit
+HazardUnit HazardUnit
+    (
+    .de_rs_data(reg_rdata1),
+    .de_rt_data(reg_rdata2),
+    .exe_wen(de_wen),
+    .exe_regsrc(de_regsrc),
+    .exe_wdata(alu_result),
+    .exe_memread(de_is_load),
+    .mem_wen(wb_wen),
+    .mem_regsrc(wb_regsrc),
+    .mem_wdata(wb_regwdata),
+    .forward_rs(forward_rs),
+    .forward_rt(forward_rt),
+    .rs_data(rs_data),
+    .rt_data(rt_data),
+    .stall(stall)
+    );
 //decode
 decode_stage de_stage
     (
@@ -114,8 +123,8 @@ decode_stage de_stage
     //inputs                       
     .fe_inst        (fe_inst        ), 
     .current_pc     (fe_pc          ),
-    .rdata1         (reg_rdata1     ),
-    .rdata2         (reg_rdata2     ),
+    .rdata1         (rs_data        ), //from Hazard Unit, which is correct
+    .rdata2         (rt_data        ),
     //outputs                                 
     .de_is_b        (de_is_b        ),
     .de_is_j        (de_is_j        ), 
@@ -140,7 +149,8 @@ decode_stage de_stage
     .forward_mem_rt (forward_mem_rt ),
     //stall
     .stall          (stall),
-    .stall_is_b     (stall_is_b)
+    .forward_rs     (forward_rs),
+    .forward_rt     (forward_rt)
     );
 
 
@@ -154,12 +164,6 @@ execute_stage exe_stage
     .de_alusrc1     (de_alusrc1     ), 
     .de_alusrc2     (de_alusrc2     ), 
     .alu_result     (alu_result     ), 
-    //forward
-    .forward_exe_rs (forward_exe_rs ),
-    .forward_exe_rt (forward_exe_rt ),
-    .forward_wb_wen (forward_wb_wen    ),
-    .forward_wb_regsrc(forward_wb_regsrc),
-    .forward_wb_wdata(forward_wb_wdata),
     //just pass to next stage
     .de_wen         (de_wen         ), 
     .de_regsrc      (de_regsrc      ),
@@ -187,14 +191,6 @@ memory_stage mem_stage
     .data_sram_wdata    (data_sram_wdata),
     .data_sram_wen      (data_sram_wen  ),
     .data_sram_en       (data_sram_en   ),
-    //forwarding
-    .forward_mem_rt     (forward_mem_rt ),
-    .forward_wb_wen     (wb_wen),
-    .forward_wb_regsrc  (wb_regsrc),
-    .forward_wb_wdata   (wb_regwdata),
-    .forward_wb_wen_reg (forward_wb_wen),
-    .forward_wb_regsrc_reg(forward_wb_regsrc),
-    .forward_wb_wdata_reg(forward_wb_wdata)
     );
 
 //wb
@@ -212,10 +208,6 @@ writeback_stage wb_stage
     .wb_wen         (wb_wen          ),
     .wb_regsrc      (wb_regsrc       ), 
     .wb_regwdata    (wb_regwdata     ),
-    //forward
-    .forward_wb_wen    (forward_wb_wen),
-    .forward_wb_regsrc (forward_wb_regsrc),
-    .forward_wb_wdata(forward_wb_wdata)
     );
 
 reg [31:0] de_pc;

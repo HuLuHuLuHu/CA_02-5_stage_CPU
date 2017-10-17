@@ -3,6 +3,7 @@ module decode_stage(
     input  wire        resetn,
     input  wire [31:0] fe_inst,
     input  wire [31:0] current_pc,
+    input  wire        stall,
 //signal for B and J
     output wire        de_is_b,
     output wire        de_is_j,  
@@ -27,13 +28,9 @@ module decode_stage(
 //wb
     output reg de_wen,
     output reg [4:0] de_regsrc,
-//forwarding
-    output reg [4:0] forward_exe_rs,
-    output reg [4:0] forward_exe_rt,
-    output reg [4:0] forward_mem_rt,
-//stall
-    output wire stall,
-    input  wire stall_is_b
+//data hazard
+    output wire [4:0] forward_rs,
+    output wire [4:0] forward_rt
 );
 
 
@@ -95,42 +92,15 @@ assign de_b_offset = fe_inst[15:0];
 assign de_j_index = fe_inst[25:0];
 
 
-
+//for data hazard
+assign forward_rs = (OP==IS_R&FUNC==SLL|OP==IS_R&FUNC==SRA|
+                     OP==IS_R&FUNC==SRL|OP==JAL)? 5'd0:raddr1;
+assign forward_rt = (OP==IS_R)?raddr2:5'd0;
 
 //for SW and
 always @(posedge clk) begin
     rt_reg_content <= rdata2;
 end
-
-//stall for lw
-wire lw_stall;
-reg [4:0] stall_lw_rt;
-wire [4:0] stall_rs;
-wire [4:0] stall_rt;
-assign stall_rs = fe_inst[25:21];//rs
-assign stall_rt = (OP == IS_R)? fe_inst[20:16] : 0;//rt
-always @(posedge clk) stall_lw_rt <= fe_inst[20:16];
-assign lw_stall = (de_dramen & stall_lw_rt !== 5'd0 &
-                (stall_lw_rt == stall_rs | stall_lw_rt == stall_rt))? 1:0;
-//stall for b-type
-wire b_stall;
-reg [1:0] stall_state;
-always @(posedge clk) begin
-    if(~resetn) stall_state <= 2'b00;
-    else begin
-        case(stall_state)
-        2'b00:begin
-                if(stall_is_b)  stall_state <= 2'b01;
-                else            stall_state <= 2'b00;
-              end
-        2'b01:stall_state <= 2'b10;
-        2'b10:stall_state <= 2'b11;
-        2'b11:stall_state <= 2'b00;
-        endcase
-    end
-end
-assign b_stall = (stall_state == 2'b00)? 0:1;
-assign stall = b_stall | lw_stall;
 
 //alu sources and control signals
 parameter alu_AND  = 4'b0000;
@@ -219,19 +189,6 @@ assign dramwen_temp = ((OP==SW)? 4'b1111:4'b0) & (~stall);
 always @(posedge clk) begin
     de_dramwen <= dramwen_temp;
     de_dramen <= dramen_temp;
-end
-
-//forwarding
-wire [4:0] forward_exe_rs_temp;
-wire [4:0] forward_exe_rt_temp;
-wire [4:0] forward_mem_rt_temp;
-assign forward_exe_rs_temp = (alusrc1_temp == rdata1)? raddr1:0; //rs
-assign forward_exe_rt_temp = (OP==IS_R)? raddr2:0; //rt
-assign forward_mem_rt_temp = (OP == SW)? raddr2:0; //rt
-always @(posedge clk) begin
-    forward_exe_rs <= forward_exe_rs_temp;
-    forward_exe_rt <= forward_exe_rt_temp;
-    forward_mem_rt <= forward_mem_rt_temp;
 end
 
 
