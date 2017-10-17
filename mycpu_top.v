@@ -194,7 +194,7 @@ memory_stage mem_stage
     .forward_wb_wdata   (wb_regwdata),
     .forward_wb_wen_reg (forward_wb_wen),
     .forward_wb_regsrc_reg(forward_wb_regsrc),
-    .forward_wb_wdata(forward_wb_wdata)
+    .forward_wb_wdata_reg(forward_wb_wdata)
     );
 
 //wb

@@ -177,9 +177,9 @@ assign alusrc1_temp = (OP==IS_R&FUNC==SLL|OP==IS_R&FUNC==SRA|
                        OP==IS_R&FUNC==SRL)? sa_extend :
                       (OP==JAL)? current_pc :
                        rdata1;
-assign alusrc2_temp = (OP==ORI)? unsigned_extend :
-                      (OP==SW|OP==LW|OP==SLTI|OP==ADDI|OP==ANDI|
-                       OP==XOR|OP==SLTIU|OP==ADDIU|OP==LUI)? signed_extend :
+assign alusrc2_temp = (OP==ORI|OP==XORI|OP==ANDI)? unsigned_extend :
+                      (OP==SW|OP==LW|OP==SLTI|OP==ADDI|
+                       OP==SLTIU|OP==ADDIU|OP==LUI)? signed_extend :
                       (OP==IS_R)? rdata2 :
                       (OP==JAL)? 32'd8 :
                       32'b0; 
@@ -226,7 +226,7 @@ wire [4:0] forward_exe_rs_temp;
 wire [4:0] forward_exe_rt_temp;
 wire [4:0] forward_mem_rt_temp;
 assign forward_exe_rs_temp = (alusrc1_temp == rdata1)? raddr1:0; //rs
-assign forward_exe_rt_temp = (alusrc2_temp == rdata2)? raddr2:0; //rt
+assign forward_exe_rt_temp = (OP==IS_R)? raddr2:0; //rt
 assign forward_mem_rt_temp = (OP == SW)? raddr2:0; //rt
 always @(posedge clk) begin
     forward_exe_rs <= forward_exe_rs_temp;

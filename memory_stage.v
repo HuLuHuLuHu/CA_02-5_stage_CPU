@@ -29,7 +29,7 @@ assign write_from_wb = (forward_wb_wen & forward_wb_regsrc !== 5'd0 &
                         forward_mem_rt == forward_wb_regsrc)? 1:0;
 assign write_from_wb_reg = (forward_wb_wen_reg & forward_wb_regsrc_reg !== 5'd0 &
 							forward_mem_rt !== forward_wb_regsrc &
-							forward_mem_rt == forward_wb_wdata_reg)? 1:0;
+							forward_mem_rt == forward_wb_regsrc_reg)? 1:0;
 assign data_sram_wdata = (write_from_wb)? forward_wb_wdata:
 						 (write_from_wb_reg)?forward_wb_wdata_reg:
 						  rt_reg_content;

@@ -37,15 +37,15 @@ module PC_calculator(
 		reg [31:0] inst_sram_addr;
 		parameter reset_address = 32'hbfc00000;
 		assign b_address = ({{16{b_offset[15]}},b_offset}<<2) + inst_sram_addr;
-		assign j_address = {inst_sram_addr[31:28],j_index,2'b00};
+		assign j_address = {inst_sram_addr[31:28],j_index[25:0],2'b00};
 		assign normal_address = inst_sram_addr + 32'd4;
 		
 		//the MUX to select the next PC
 		assign next_pc = (resetn==0)? reset_address:
+		                 (stall)?		inst_sram_addr://stall
 						 (is_b & b_taken)? b_address: //B
 						 (is_jr)?		rdata1://JR
 						 (is_j)?		j_address:  //J
-						 (stall)?		inst_sram_addr: //stall
 						 normal_address; //+4
 
 		assign inst_sram_en = 1;

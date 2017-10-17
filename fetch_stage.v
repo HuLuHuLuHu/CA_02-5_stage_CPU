@@ -16,6 +16,7 @@ module fetch_stage(
 	//b-type for stall
 	parameter BEQ   = 6'b000100;
 	parameter BNE   = 6'b000101;
+	parameter JR    = 6'b001000;
 	
 	always @(posedge clk) begin
 		if(resetn == 0) begin
@@ -33,8 +34,11 @@ module fetch_stage(
 	end
 
 	//for stall
+	wire [5:0] OP;
+	wire [5:0] FUNC;
 	assign OP = inst_sram_rdata[31:26];
-	assign stall_is_b = (OP == BEQ | OP == BNE)? 1:0;
+	assign FUNC = inst_sram_rdata[5:0];
+	assign stall_is_b = (OP == BEQ | OP == BNE | (OP == 6'd0 & FUNC == JR))? 1:0;
 
 
 endmodule //fetch_stage
