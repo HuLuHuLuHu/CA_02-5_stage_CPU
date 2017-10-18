@@ -74,8 +74,8 @@ PC_calculator PC_calculator
     .b_offset       (de_b_offset    ), 
     .j_index        (de_j_index     ), 
     //data from reg_flie
-    .rdata1         (reg_rdata1     ), 
-    .rdata2         (reg_rdata2     ),
+    .rdata1         (rs_data    ), 
+    .rdata2         (rt_data     ),
     //outputs
     .inst_sram_en   (inst_sram_en   ),
     .next_pc        (inst_sram_addr ),

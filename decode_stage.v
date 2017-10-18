@@ -95,7 +95,7 @@ assign de_j_index = fe_inst[25:0];
 //for data hazard
 assign forward_rs = (OP==IS_R&FUNC==SLL|OP==IS_R&FUNC==SRA|
                      OP==IS_R&FUNC==SRL|OP==JAL)? 5'd0:raddr1;
-assign forward_rt = (OP==IS_R)?raddr2:5'd0;
+assign forward_rt = (OP==IS_R | OP == BNE | OP == BEQ | OP==SW)?raddr2:5'd0;
 
 //for SW and
 always @(posedge clk) begin
