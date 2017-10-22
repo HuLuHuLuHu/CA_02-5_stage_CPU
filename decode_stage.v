@@ -1,108 +1,93 @@
 module decode_stage(
     input  wire        clk,
     input  wire        resetn,
-    input  wire [31:0] fe_inst,
-    input  wire [31:0] current_pc,
     input  wire        stall,
-//signal for B and J
+//data from fe stage
+    input  wire [31:0] fe_inst,
+    input  wire [31:0] fe_pc,
+//data to regfile
+	  output wire [4:0]  fe_rs_addr,
+    output wire [4:0]  fe_rt_addr,
+//data to and from hazard unit
+    output wire [4:0]  de_rs_addr,
+    output wire [4:0]  de_rt_addr,
+    input  wire [31:0] de_rs_data, //forwarded
+    input  wire [31:0] de_rt_data, //forwarded
+//signal for pc caculator
     output wire        de_is_b,
     output wire        de_is_j,  
     output wire        de_is_jr,
     output wire [3:0]  de_b_type,     
     output wire [15:0] de_b_offset, 
     output wire [25:0] de_j_index,   
-//reg
-    output wire [4:0]  raddr1,
-    output wire [4:0]  raddr2,
-    input  wire [31:0] rdata1,
-    input  wire [31:0] rdata2,
-    output reg [31:0] rt_reg_content,//FOR SW
-    output reg de_is_load,
-//alu
-    output reg [3:0] de_aluop,
-    output reg [31:0] de_alusrc1,
-    output reg [31:0] de_alusrc2,
-//dataram
-    output reg de_dramen,
-    output reg [3:0] de_dramwen,
-//wb
-    output reg de_wen,
-    output reg [4:0] de_regsrc,
-//data hazard
-    output wire [4:0] forward_rs,
-    output wire [4:0] forward_rt
+//signal for exe stage
+    output reg  [3:0]  de_aluop,
+    output reg  [31:0] de_alusrc1,
+    output reg  [31:0] de_alusrc2,
+//signal for mem stage
+    output reg 		   de_mem_en,
+    output reg  [3:0]  de_mem_wen,
+    output reg  [31:0] de_mem_wdata,
+//signal for wb stage
+    output reg 		   de_reg_en,
+    output reg         de_mem_read,
+    output reg  [4:0]  de_reg_waddr
 );
 
 
-
-//define inst
-parameter J     = 6'b000010;
-parameter JAL   = 6'b000011;
-parameter BEQ   = 6'b000100;
-parameter BNE   = 6'b000101;
-parameter ADDIU = 6'b001001;
-parameter ADDI  = 6'b001000;
-parameter SLTI  = 6'b001010;
-parameter SLTIU = 6'b001011;
-parameter LW    = 6'b100011;
-parameter SW    = 6'b101011;
-parameter LUI   = 6'b001111;
-parameter ANDI  = 6'b001100;
-parameter ORI   = 6'b001101;
-parameter XORI  = 6'b001110;
-
-//define r-type func
-parameter IS_R  = 6'b000000;
-parameter ADD   = 6'b100000;
-parameter OR    = 6'b100101;
-parameter SLT   = 6'b101010;
-parameter ADDU  = 6'b100001;
-parameter SUB   = 6'b100010;
-parameter SLL   = 6'b000000;
-parameter JR    = 6'b001000;
-parameter AND   = 6'b100100;
-parameter SLTU  = 6'b101011;
-parameter SUBU  = 6'b100011;
-parameter NOR   = 6'b100111;
-parameter XOR   = 6'b100110;
-parameter SRA   = 6'b000011;
-parameter SLLV  = 6'b000100;
-parameter SRL   = 6'b000010;
-parameter SRAV  = 6'b000111;
-parameter SRLV  = 6'b000110;
-
-
-
-wire [5:0] OP;
-wire [5:0] FUNC;
-assign OP = fe_inst[31:26];
-assign FUNC = fe_inst[5:0];
-
-//b&j
-    //for different type of b
-    parameter type_BNE = 4'b0000;
-    parameter type_BEQ = 4'b0001;
-assign de_is_j = (OP == J | OP == JAL)? 1:0;
-assign de_is_b = (OP == BEQ | OP == BNE)? 1:0;
-assign de_b_type = (OP == BEQ)? type_BEQ :
-                   (OP == BNE)? type_BNE : 
-                   4'b0000;
-assign de_is_jr = (OP == IS_R & FUNC == JR)? 1:0;
-assign de_b_offset = fe_inst[15:0];
-assign de_j_index = fe_inst[25:0];
-
-
-//for data hazard
-assign forward_rs = (OP==IS_R&FUNC==SLL|OP==IS_R&FUNC==SRA|
-                     OP==IS_R&FUNC==SRL|OP==JAL)? 5'd0:raddr1;
-assign forward_rt = (OP==IS_R | OP == BNE | OP == BEQ | OP==SW)?raddr2:5'd0;
-
-//for SW and
-always @(posedge clk) begin
-    rt_reg_content <= rdata2;
-end
-
-//alu sources and control signals
+wire [5:0] OP;		assign OP         = fe_inst[31:26];
+wire [5:0] FUNC;  assign FUNC       = fe_inst[5:0];
+//I-type and B-type 
+wire inst_R;		  assign inst_R     = (OP == 6'b000000);
+wire inst_J;		  assign inst_J     = (OP == 6'b000010);
+wire inst_JAL;		assign inst_JAL   = (OP == 6'b000011);
+wire inst_BEQ;		assign inst_BEQ   = (OP == 6'b000100);
+wire inst_BNE;		assign inst_BNE   = (OP == 6'b000101);
+wire inst_BGEZ;   assign inst_BGEZ  = (OP == 6'b000001 & fe_inst[20:16] == 5'b00001);
+wire inst_BGTZ;   assign inst_BGTZ  = (OP == 6'b000111);
+wire inst_BLEZ;   assign inst_BLEZ  = (OP == 6'b000110);
+wire inst_BLTZ;   assign inst_BLTZ  = (OP == 6'b000001 & fe_inst[20:16] == 5'b00000);
+wire inst_BLTZAL; assign inst_BLTZAL= (OP == 6'b000001 & fe_inst[20:16] == 5'b10000);
+wire inst_BGEZAL; assign inst_BGEZAL= (OP == 6'b000001 & fe_inst[20:16] == 5'b10001);
+wire inst_ADDIU;	assign inst_ADDIU = (OP == 6'b001001);
+wire inst_ADDI;  	assign inst_ADDI  = (OP == 6'b001000);
+wire inst_SLTI;		assign inst_SLTI  = (OP == 6'b001010);
+wire inst_SLTIU;	assign inst_SLTIU = (OP == 6'b001011);
+wire inst_LW;		  assign inst_LW    = (OP == 6'b100011);
+wire inst_SW;		  assign inst_SW    = (OP == 6'b101011);
+wire inst_LUI;		assign inst_LUI   = (OP == 6'b001111);
+wire inst_ANDI;		assign inst_ANDI  = (OP == 6'b001100);
+wire inst_ORI;		assign inst_ORI   = (OP == 6'b001101);
+wire inst_XORI;		assign inst_XORI  = (OP == 6'b001110);
+//R-type inst
+wire inst_ADD;      assign inst_ADD   = (inst_R & FUNC == 6'b100000);
+wire inst_OR;       assign inst_OR    = (inst_R & FUNC == 6'b100101);
+wire inst_SLT;      assign inst_SLT   = (inst_R & FUNC == 6'b101010);
+wire inst_ADDU;     assign inst_ADDU  = (inst_R & FUNC == 6'b100001);
+wire inst_SUB;      assign inst_SUB   = (inst_R & FUNC == 6'b100010);
+wire inst_SLL;      assign inst_SLL   = (inst_R & FUNC == 6'b000000);
+wire inst_JR;       assign inst_JR    = (inst_R & FUNC == 6'b001000);
+wire inst_AND;      assign inst_AND   = (inst_R & FUNC == 6'b100100);
+wire inst_SLTU;     assign inst_SLTU  = (inst_R & FUNC == 6'b101011);
+wire inst_SUBU;     assign inst_SUBU  = (inst_R & FUNC == 6'b100011);
+wire inst_NOR;      assign inst_NOR   = (inst_R & FUNC == 6'b100111);
+wire inst_XOR;      assign inst_XOR   = (inst_R & FUNC == 6'b100110);
+wire inst_SRA;      assign inst_SRA   = (inst_R & FUNC == 6'b000011);
+wire inst_SLLV;     assign inst_SLLV  = (inst_R & FUNC == 6'b000100);
+wire inst_SRL;      assign inst_SRL   = (inst_R & FUNC == 6'b000010);
+wire inst_SRAV;     assign inst_SRAV  = (inst_R & FUNC == 6'b000111);
+wire inst_SRLV;     assign inst_SRLV  = (inst_R & FUNC == 6'b000110);
+wire inst_JALR;     assign inst_JALR  = (inst_R & FUNC == 6'b001001);
+//define b-type
+parameter type_BNE    = 4'b0000;
+parameter type_BEQ    = 4'b0001;
+parameter type_BGEZ   = 4'b0010;
+parameter type_BGTZ   = 4'b0011;
+parameter type_BLEZ   = 4'b0100;
+parameter type_BLTZ   = 4'b0101;
+parameter type_BLTZAL = 4'b0110;
+parameter type_BGEZAL = 4'b0111;
+//define ALU OP
 parameter alu_AND  = 4'b0000;
 parameter alu_OR   = 4'b0001;
 parameter alu_ADD  = 4'b0010;
@@ -117,81 +102,123 @@ parameter alu_LUI  = 4'b1010;
 parameter alu_XOR  = 4'b1011;
 parameter alu_NOR  = 4'b1100;
 
-wire [3:0] aluop_temp;
-wire [31:0] alusrc1_temp;
-wire [31:0] alusrc2_temp;
+
+//data to regfiles
+assign fe_rs_addr = fe_inst[25:21];
+
+assign fe_rt_addr = fe_inst[20:16];
+
+//data to hazard unit
+assign de_rs_addr = (inst_SLL| inst_SRA | inst_SRL | inst_JAL) ? 5'd0:fe_rs_addr;
+
+assign de_rt_addr = (inst_R  | inst_BNE | inst_BEQ | inst_SW ) ? fe_rt_addr:5'd0;
+
+//data for pc caculator
+assign de_b_offset= fe_inst[15:0];
+
+assign de_j_index = fe_inst[25:0];
+
+assign de_is_jr   = (inst_JR | inst_JALR) ? 1:0;
+
+assign de_is_j    = (inst_J  | inst_JAL ) ? 1:0;
+
+assign de_is_b    = (inst_BEQ  | inst_BNE  | inst_BGEZ   | inst_BGTZ  |
+                     inst_BLEZ | inst_BLTZ | inst_BLTZAL | inst_BGEZAL ) ? 1:0;
+
+assign de_b_type  = (inst_BEQ   ) ? type_BEQ :
+                    (inst_BNE   ) ? type_BNE : 
+                    (inst_BGEZ  ) ? type_BGEZ:
+                    (inst_BGTZ  ) ? type_BGTZ:
+                    (inst_BLEZ  ) ? type_BLEZ:
+                    (inst_BLTZ  ) ? type_BLTZ:
+                    (inst_BLTZAL) ? type_BLTZAL:
+                    (inst_BGEZAL) ? type_BGEZAL:
+                     4'b0000;
+
+//data for exe stage
+wire [31:0] sa_extend;
 wire [31:0] signed_extend;
 wire [31:0] unsigned_extend;
-wire [31:0] sa_extend;
-assign sa_extend = {27'b0,fe_inst[10:6]};
-assign signed_extend = {{16{fe_inst[15]}},fe_inst[15:0]};
-assign unsigned_extend =  {16'b0,fe_inst[15:0]};
-assign aluop_temp = (OP==ADDI|OP==ADDIU|
-                     OP==LW|OP==SW|
-                     OP==IS_R&FUNC==ADD|
-                     OP==IS_R&FUNC==ADDU|
-                     OP==JAL)? alu_ADD :
-                    (OP==IS_R&FUNC==SLT|OP==SLTI)? alu_SLT :
-                    (OP==SLTIU|OP==IS_R&FUNC==SLTU)? alu_SLTU :
-                    (OP==IS_R&FUNC==SUB|OP==IS_R&FUNC==SUBU)? alu_SUB :
-                    (OP==LUI)? alu_LUI :
-                    (OP==IS_R&FUNC==OR|OP==ORI)? alu_OR :
-                    (OP==IS_R&FUNC==AND|OP==ANDI)? alu_AND :
-                    (OP==IS_R&FUNC==SLL|OP==IS_R&FUNC==SLLV)? alu_SLL : 
-                    (OP==IS_R&FUNC==XOR|OP==XORI)? alu_XOR :
-                    (OP==IS_R&FUNC==NOR)? alu_NOR :
-                    (OP==IS_R&FUNC==SRA|OP==IS_R&FUNC==SRAV)? alu_SRA :
-                    (OP==IS_R&FUNC==SRL|OP==IS_R&FUNC==SRLV)? alu_SRL :
-                     4'b0000;
-assign alusrc1_temp = (OP==IS_R&FUNC==SLL|OP==IS_R&FUNC==SRA|
-                       OP==IS_R&FUNC==SRL)? sa_extend :
-                      (OP==JAL)? current_pc :
-                       rdata1;
-assign alusrc2_temp = (OP==ORI|OP==XORI|OP==ANDI)? unsigned_extend :
-                      (OP==SW|OP==LW|OP==SLTI|OP==ADDI|
-                       OP==SLTIU|OP==ADDIU|OP==LUI)? signed_extend :
-                      (OP==IS_R)? rdata2 :
-                      (OP==JAL)? 32'd8 :
-                      32'b0; 
+
+wire [3:0]  aluop_temp;
+wire [31:0] alusrc1_temp;
+wire [31:0] alusrc2_temp;
+
+assign sa_extend       = {27'b0,fe_inst[10:6]};
+
+assign signed_extend   = {{16{fe_inst[15]}},fe_inst[15:0]};
+
+assign unsigned_extend = {16'b0,fe_inst[15:0]};
+
+assign aluop_temp   = (inst_NOR ) ? alu_NOR :
+                      (inst_LUI ) ? alu_LUI :
+                      (inst_SLT   | inst_SLTI ) ? alu_SLT :
+                      (inst_SLTIU | inst_SLTU ) ? alu_SLTU:
+                      (inst_SUB   | inst_SUBU ) ? alu_SUB :
+                      (inst_OR    | inst_ORI  ) ? alu_OR  :
+                      (inst_AND   | inst_ANDI ) ? alu_AND :
+                      (inst_SLL   | inst_SLLV ) ? alu_SLL : 
+                      (inst_XOR   | inst_XORI ) ? alu_XOR :
+                      (inst_SRA   | inst_SRAV ) ? alu_SRA :
+                      (inst_SRL   | inst_SRLV ) ? alu_SRL :
+                      (inst_ADDI  | inst_ADDIU | inst_LW | inst_SW     |
+                       inst_ADD   | inst_ADDU  | inst_JAL| inst_BLTZAL | 
+                       inst_BGEZAL| inst_JALR) ? alu_ADD : 4'b0000;
+
+assign alusrc1_temp = (inst_SLL  | inst_SRA    | inst_SRL   ) ? sa_extend : 
+                      (inst_JAL  | inst_BLTZAL | inst_BGEZAL | inst_JALR) ? fe_pc : de_rs_data;
+
+assign alusrc2_temp = (inst_R   ) ? de_rt_data :
+                      (inst_ORI  | inst_XORI  | inst_ANDI  ) ? unsigned_extend :
+                      (inst_JAL  | inst_BGEZAL| inst_BLTZAL | inst_JALR) ? 32'd8 :
+                      (inst_SW   | inst_LW    | inst_SLTI   | inst_ADDI |
+                       inst_SLTIU| inst_ADDIU | inst_LUI   ) ? signed_extend : 32'b0; 
+
 always @(posedge clk) begin
-    de_aluop <= aluop_temp;
+    de_aluop   <= aluop_temp;
     de_alusrc1 <= alusrc1_temp;
     de_alusrc2 <= alusrc2_temp;
 end
 
 
-//reg
-assign raddr1 = fe_inst[25:21];
-assign raddr2 = fe_inst[20:16];
-wire wen_temp;
-wire [4:0] regsrc_temp;
-wire de_is_load_temp;
-assign de_is_load_temp = (OP==LW)? 1:0;
-assign wen_temp = ((OP==IS_R|OP==ADDIU|OP==ADDI|
-                   OP==SLTI|OP==SLTIU|OP==LW|
-                   OP==LUI|OP==JAL|OP==ANDI|OP==ORI|OP==XORI)? 1:0) & (~stall);
-assign regsrc_temp = (OP==IS_R)? fe_inst[15:11] : //rd
-                     (OP==LW|OP==ADDIU|OP==ADDI|OP==SLTI|OP==SLTIU
-                     |OP==LUI|OP==ANDI|OP==ORI|OP==XORI)? fe_inst[20:16]: //rt
-                     (OP==JAL)? 5'b11111:
-                     5'b0;
+//data for mem stage
+wire mem_en_temp;
+wire [3:0] mem_wen_temp;
+
+assign mem_en_temp  = (inst_LW  | inst_SW )? 1 : 0;
+
+assign mem_wen_temp = (~stall)  & (inst_SW ? 4'b1111 : 4'b0);
+
 always @(posedge clk) begin
-    de_wen <= wen_temp;
-    de_regsrc <= regsrc_temp;
-    de_is_load <= de_is_load_temp;
+    de_mem_en    <= mem_en_temp;
+    de_mem_wen   <= mem_wen_temp;  
+    de_mem_wdata <= de_rt_data;
 end
 
-//dram
-wire [3:0] dramwen_temp;
-wire dramen_temp;
-assign dramen_temp = (OP==LW|OP==SW)? 1:0;
-assign dramwen_temp = ((OP==SW)? 4'b1111:4'b0) & (~stall);
+//data for wb stage
+wire reg_en_temp,
+wire mem_read_temp,
+wire [4:0] reg_waddr_temp;
+
+assign mem_read_temp  = (inst_LW) ? 1 : 0;
+
+assign reg_en_temp    = (~stall) & 
+                        ((inst_R     | inst_ADDIU | inst_ADDI |
+                          inst_SLTI  | inst_SLTIU | inst_LW   |
+                          inst_LUI   | inst_JAL   | inst_ANDI |
+                          inst_ORI   | inst_XORI  | inst_BGEZAL
+                          inst_BLTZAL| inst_JALR) ? 1:0 );
+
+assign reg_waddr_temp = (inst_R    | inst_JALR  ) ? fe_inst[15:11] : //rd
+                        (inst_JAL  | inst_BGEZAL| inst_BLTZAL) ? 5'b11111:
+                        (inst_LW   | inst_ADDIU | inst_ADDI| inst_SLTI | inst_SLTIU |
+                         inst_LUI  | inst_ANDI  | inst_ORI | inst_XORI ) ? fe_inst[20:16]: 5'b0; //rt
+
 always @(posedge clk) begin
-    de_dramwen <= dramwen_temp;
-    de_dramen <= dramen_temp;
+    de_reg_en    <= reg_en_temp;
+    de_mem_read  <= mem_read_temp;
+    de_reg_waddr <= reg_waddr_temp;
 end
-
-
 
 endmodule //decode_stage
  

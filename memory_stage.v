@@ -4,21 +4,21 @@ module memory_stage(
     input  wire        clk,
     input  wire        resetn,
 
-    input  wire [31:0] alu_result,        //reg num of dest operand
-    input  wire [31:0] rt_reg_content,
-    input  wire [3:0] de_dramwen,
-    input  wire  de_dramen,
-    output wire [31:0] data_sram_addr,
-    output wire [31:0] data_sram_wdata,
+//data from de stage and exe stage
+    input  wire        de_mem_en,
+    input  wire [3:0]  de_mem_wen,
+    input  wire [31:0] exe_mem_waddr,
+    input  wire [31:0] de_mem_wdata,
+//data to data ram
+    output wire        data_sram_en,
     output wire [3:0]  data_sram_wen,
-    output wire data_sram_en
-
+    output wire [31:0] data_sram_addr,
+    output wire [31:0] data_sram_wdata
 );
 
-
-assign data_sram_addr = alu_result;
-assign data_sram_wen = de_dramwen;
-assign data_sram_en = de_dramen;
-assign data_sram_wdata = rt_reg_content;
+assign data_sram_en    = de_mem_en;
+assign data_sram_wen   = de_mem_wen;
+assign data_sram_addr  = exe_mem_waddr;
+assign data_sram_wdata = de_mem_wdata;
 
 endmodule //memory_stage
