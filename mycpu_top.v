@@ -31,8 +31,8 @@ wire [31:0] de_rs_data,de_rt_data;
 //regfile
 wire [31:0] reg_rdata1,reg_rdata2;
 //de stage
-wire [4:0]  reg_raddr1,reg_raddr2;
-wire [4:0]  de_rs_addr,de_rt_addr;
+wire [5:0]  reg_raddr1,reg_raddr2;
+wire [5:0]  de_rs_addr,de_rt_addr;
 wire        de_is_b,de_is_j,de_is_jr;
 wire [3:0]  de_b_type;
 wire [15:0] de_b_offset;
@@ -45,17 +45,17 @@ wire [3:0]  de_mem_wen;
 wire [31:0] de_mem_wdata;
 wire        de_reg_en;
 wire        de_mem_read;
-wire [4:0]  de_reg_waddr;
+wire [5:0]  de_reg_waddr;
 //exe stage
 wire [31:0] alu_result;
 wire exe_reg_en;
 wire exe_mem_read;
-wire [4:0] exe_reg_waddr;
+wire [5:0] exe_reg_waddr;
 wire [31:0] alu_result_reg;
 //in mem stage, this is no special output signals
 //wb stage
 wire wb_reg_en;
-wire [4:0] wb_reg_waddr;
+wire [5:0] wb_reg_waddr;
 wire [31:0] wb_reg_wdata;
 
 // inst_sram is now a ROM
@@ -242,8 +242,8 @@ begin
 end
 assign debug_wb_pc = exe_pc;
 assign debug_wb_rf_wdata = wb_reg_wdata;
-assign debug_wb_rf_wnum = wb_reg_waddr;
-assign debug_wb_rf_wen = (wb_reg_en==1)? 4'b1111:4'b0000;
+assign debug_wb_rf_wnum = wb_reg_waddr[4:0];
+assign debug_wb_rf_wen = (wb_reg_en & ~wb_reg_waddr[5])? 4'b1111:4'b0000;
 
 
 

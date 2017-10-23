@@ -6,11 +6,11 @@ module decode_stage(
     input  wire [31:0] fe_inst,
     input  wire [31:0] fe_pc,
 //data to regfile
-	output wire [4:0]  fe_rs_addr,
-    output wire [4:0]  fe_rt_addr,
+	  output wire [5:0]  fe_rs_addr,
+    output wire [5:0]  fe_rt_addr,
 //data to and from hazard unit
-    output wire [4:0]  de_rs_addr,
-    output wire [4:0]  de_rt_addr,
+    output wire [5:0]  de_rs_addr,
+    output wire [5:0]  de_rt_addr,
     input  wire [31:0] de_rs_data, //forwarded
     input  wire [31:0] de_rt_data, //forwarded
 //signal for pc caculator
@@ -25,13 +25,13 @@ module decode_stage(
     output reg  [31:0] de_alusrc1,
     output reg  [31:0] de_alusrc2,
 //signal for mem stage
-    output reg 		   de_mem_en,
+    output reg 		     de_mem_en,
     output reg  [3:0]  de_mem_wen,
     output reg  [31:0] de_mem_wdata,
 //signal for wb stage
-    output reg 		   de_reg_en,
+    output reg 		     de_reg_en,
     output reg         de_mem_read,
-    output reg  [4:0]  de_reg_waddr
+    output reg  [5:0]  de_reg_waddr
 );
 
 
@@ -78,6 +78,11 @@ wire inst_SRL;      assign inst_SRL   = (inst_R & FUNC == 6'b000010);
 wire inst_SRAV;     assign inst_SRAV  = (inst_R & FUNC == 6'b000111);
 wire inst_SRLV;     assign inst_SRLV  = (inst_R & FUNC == 6'b000110);
 wire inst_JALR;     assign inst_JALR  = (inst_R & FUNC == 6'b001001);
+wire inst_MFHI;
+wire inst_MFLO;
+wire inst_MTHI;
+wire inst_MTLO;
+wire inst_M;        assign inst_M     = (inst_MTLO | inst_MTHI | inst_MFLO | inst_MFHI);
 //define b-type
 parameter type_BNE    = 4'b0000;
 parameter type_BEQ    = 4'b0001;
@@ -104,14 +109,17 @@ parameter alu_NOR  = 4'b1100;
 
 
 //data to regfiles
-assign fe_rs_addr = fe_inst[25:21];
+assign fe_rs_addr = (~inst_M) ? {0,fe_inst[25:21]} :
+                    (inst_MFHI)? 6'b100001:
+                    (inst_MFLO)? 6'b100000:
+                     6'b0;
 
-assign fe_rt_addr = fe_inst[20:16];
+assign fe_rt_addr = {0,fe_inst[20:16]};
 
 //data to hazard unit
-assign de_rs_addr = (inst_SLL| inst_SRA | inst_SRL | inst_JAL) ? 5'd0:fe_rs_addr;
+assign de_rs_addr = (inst_SLL| inst_SRA | inst_SRL | inst_JAL) ? 6'd0:fe_rs_addr;
 
-assign de_rt_addr = (inst_R  | inst_BNE | inst_BEQ | inst_SW ) ? fe_rt_addr:5'd0;
+assign de_rt_addr = (inst_R  | inst_BNE | inst_BEQ | inst_SW ) ? fe_rt_addr:6'd0;
 
 //data for pc caculator
 assign de_b_offset= fe_inst[15:0];
@@ -163,7 +171,7 @@ assign aluop_temp   = (inst_NOR ) ? alu_NOR :
                       (inst_SRL   | inst_SRLV ) ? alu_SRL :
                       (inst_ADDI  | inst_ADDIU | inst_LW | inst_SW     |
                        inst_ADD   | inst_ADDU  | inst_JAL| inst_BLTZAL | 
-                       inst_BGEZAL| inst_JALR) ? alu_ADD : 4'b0000;
+                       inst_BGEZAL| inst_JALR  | inst_M ) ? alu_ADD : 4'b0000;
 
 assign alusrc1_temp = (inst_SLL  | inst_SRA    | inst_SRL   ) ? sa_extend : 
                       (inst_JAL  | inst_BLTZAL | inst_BGEZAL | inst_JALR) ? fe_pc : de_rs_data;
@@ -207,12 +215,14 @@ assign reg_en_temp    = (~stall) &
                           inst_SLTI  | inst_SLTIU | inst_LW    |
                           inst_LUI   | inst_JAL   | inst_ANDI  |
                           inst_ORI   | inst_XORI  | inst_BGEZAL|
-                          inst_BLTZAL| inst_JALR) ? 1:0 );
+                          inst_BLTZAL| inst_JALR  | inst_M) ? 1:0 );
 
-assign reg_waddr_temp = (inst_R    | inst_JALR  ) ? fe_inst[15:11] : //rd
-                        (inst_JAL  | inst_BGEZAL| inst_BLTZAL) ? 5'b11111:
+assign reg_waddr_temp = (inst_MTLO)? 6'b000000:
+                        (inst_MTHI)? 6'b000001:
+                        (inst_R    | inst_JALR  ) ? {0,fe_inst[15:11]} : //rd
+                        (inst_JAL  | inst_BGEZAL| inst_BLTZAL) ? 6'b011111:
                         (inst_LW   | inst_ADDIU | inst_ADDI| inst_SLTI | inst_SLTIU |
-                         inst_LUI  | inst_ANDI  | inst_ORI | inst_XORI ) ? fe_inst[20:16]: 5'b0; //rt
+                         inst_LUI  | inst_ANDI  | inst_ORI | inst_XORI ) ? {0,fe_inst[20:16]}: 6'b0; //rt
 
 always @(posedge clk) begin
     de_reg_en    <= reg_en_temp;

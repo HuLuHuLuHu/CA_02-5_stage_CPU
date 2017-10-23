@@ -11,13 +11,13 @@ module execute_stage(
 //data from de stage 
     input  wire        de_reg_en,
     input  wire        de_mem_read,
-    input  wire [4:0]  de_reg_waddr,
+    input  wire [5:0]  de_reg_waddr,
 //data to mem stage
     output wire [31:0] alu_result,
 //data to wb stage 
     output reg         exe_reg_en,
     output reg         exe_mem_read,
-    output reg  [4:0]  exe_reg_waddr,
+    output reg  [5:0]  exe_reg_waddr,
     output reg  [31:0] alu_result_reg
 );
 

@@ -1,5 +1,5 @@
 `define DATA_WIDTH 32
-`define ADDR_WIDTH 5
+`define ADDR_WIDTH 6
 
 `timescale 10ns / 1ns
 

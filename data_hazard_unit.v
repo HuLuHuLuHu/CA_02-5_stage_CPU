@@ -3,16 +3,16 @@ module data_hazard_unit(
 				input [31:0]    reg_rs_data,
 				input [31:0]    reg_rt_data,
 				//data from if stage
-				input [4:0]     de_rs_addr,
-				input [4:0] 	de_rt_addr,
+				input [5:0]     de_rs_addr,
+				input [5:0] 	de_rt_addr,
 				//data from exe stage
 				input 			exe_reg_en,
-				input [4:0] 	exe_reg_waddr,
+				input [5:0] 	exe_reg_waddr,
 				input [31:0] 	exe_reg_wdata,
 				input			exe_mem_read,
 				//data from mem stage
 				input 			mem_reg_en,
-				input [4:0]		mem_reg_waddr,
+				input [5:0]		mem_reg_waddr,
 				input [31:0]    mem_reg_wdata,
 				//to de stage
 				output [31:0] 	de_rs_data,
