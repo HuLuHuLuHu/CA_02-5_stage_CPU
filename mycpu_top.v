@@ -1,6 +1,3 @@
-
-
-
 module mycpu_top(
     input  wire        clk,
     input  wire        resetn,            //low active
@@ -44,7 +41,7 @@ wire [3:0]  de_aluop;
 wire [31:0] de_alusrc1;
 wire [31:0] de_alusrc2;
 wire        de_mem_en;
-wire [3:0]  de_mem_wen;;
+wire [3:0]  de_mem_wen;
 wire [31:0] de_mem_wdata;
 wire        de_reg_en;
 wire        de_mem_read;
@@ -97,14 +94,14 @@ fetch_stage fetch_stage
     .stall          (stall          ),
 //inputs from inst_ram and pc_caculator
     .inst_sram_rdata(inst_sram_rdata), 
-    .inst_sram_addr (current_pc     ), 
+    .inst_sram_raddr (current_pc     ), 
 //data to de stage                            
     .fe_pc          (fe_pc          ), 
     .fe_inst        (fe_inst        )
     );
 
 //Hazard Unit
-HazardUnit HazardUnit
+data_hazard_unit HazardUnit
     (
     .reg_rs_data    (reg_rdata1     ),
     .reg_rt_data    (reg_rdata2     ),
@@ -113,7 +110,7 @@ HazardUnit HazardUnit
 
     .exe_reg_en     (de_reg_en      ),
     .exe_reg_waddr  (de_reg_waddr   ),
-    .exe_wdata      (alu_result     ),
+    .exe_reg_wdata      (alu_result     ),
     .exe_mem_read   (de_mem_read    ),
     .mem_reg_en     (exe_reg_en     ),
     .mem_reg_waddr  (exe_reg_waddr  ),
@@ -243,13 +240,10 @@ begin
 	de_pc <= fe_pc;
 	exe_pc <= de_pc;
 end
-assign reg_wen   = wb_wen; 
-assign reg_waddr = wb_regsrc;
-assign reg_wdata = wb_regwdata;
 assign debug_wb_pc = exe_pc;
-assign debug_wb_rf_wdata = wb_regwdata;
-assign debug_wb_rf_wnum = wb_regsrc;
-assign debug_wb_rf_wen = (wb_wen==1)? 4'b1111:4'b0000;
+assign debug_wb_rf_wdata = wb_reg_wdata;
+assign debug_wb_rf_wnum = wb_reg_waddr;
+assign debug_wb_rf_wen = (wb_reg_en==1)? 4'b1111:4'b0000;
 
 
 

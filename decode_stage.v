@@ -6,7 +6,7 @@ module decode_stage(
     input  wire [31:0] fe_inst,
     input  wire [31:0] fe_pc,
 //data to regfile
-	  output wire [4:0]  fe_rs_addr,
+	output wire [4:0]  fe_rs_addr,
     output wire [4:0]  fe_rt_addr,
 //data to and from hazard unit
     output wire [4:0]  de_rs_addr,
@@ -196,17 +196,17 @@ always @(posedge clk) begin
 end
 
 //data for wb stage
-wire reg_en_temp,
-wire mem_read_temp,
+wire reg_en_temp;
+wire mem_read_temp;
 wire [4:0] reg_waddr_temp;
 
 assign mem_read_temp  = (inst_LW) ? 1 : 0;
 
 assign reg_en_temp    = (~stall) & 
-                        ((inst_R     | inst_ADDIU | inst_ADDI |
-                          inst_SLTI  | inst_SLTIU | inst_LW   |
-                          inst_LUI   | inst_JAL   | inst_ANDI |
-                          inst_ORI   | inst_XORI  | inst_BGEZAL
+                        ((inst_R     | inst_ADDIU | inst_ADDI  |
+                          inst_SLTI  | inst_SLTIU | inst_LW    |
+                          inst_LUI   | inst_JAL   | inst_ANDI  |
+                          inst_ORI   | inst_XORI  | inst_BGEZAL|
                           inst_BLTZAL| inst_JALR) ? 1:0 );
 
 assign reg_waddr_temp = (inst_R    | inst_JALR  ) ? fe_inst[15:11] : //rd

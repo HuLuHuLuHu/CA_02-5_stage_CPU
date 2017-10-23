@@ -1,11 +1,5 @@
-`ifdef PRJ1_FPGA_IMPL
-	// the board does not have enough GPIO, so we implement 4 4-bit registers
-    `define DATA_WIDTH 4
-	`define ADDR_WIDTH 2
-`else
-    `define DATA_WIDTH 32
-	`define ADDR_WIDTH 5
-`endif
+`define DATA_WIDTH 32
+`define ADDR_WIDTH 5
 
 `timescale 10ns / 1ns
 

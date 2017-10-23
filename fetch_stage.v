@@ -15,7 +15,7 @@ module fetch_stage(
 		if(~resetn) 
 			begin
 				fe_pc   <= reset_pc;
-				fe_inst <= rest_inst;
+				fe_inst <= reset_inst;
 			end
 		else if(stall) 
 			begin
