@@ -24,6 +24,8 @@ module decode_stage(
     output reg  [3:0]  de_aluop,
     output reg  [31:0] de_alusrc1,
     output reg  [31:0] de_alusrc2,
+    output reg  [32:0] de_extend_rs; //new
+    output reg  [32:0] de_extend_rt; //new
 //signal for mem stage
     output reg 		     de_mem_en,
     output reg  [3:0]  de_mem_wen,
@@ -31,7 +33,10 @@ module decode_stage(
 //signal for wb stage
     output reg 		     de_reg_en,
     output reg         de_mem_read,
-    output reg  [5:0]  de_reg_waddr
+    output reg  [5:0]  de_reg_waddr,
+    output reg         de_double_en,  //new
+    output reg         de_mul,  //new
+    output reg         de_div   //new
 );
 
 
@@ -78,11 +83,15 @@ wire inst_SRL;      assign inst_SRL   = (inst_R & FUNC == 6'b000010);
 wire inst_SRAV;     assign inst_SRAV  = (inst_R & FUNC == 6'b000111);
 wire inst_SRLV;     assign inst_SRLV  = (inst_R & FUNC == 6'b000110);
 wire inst_JALR;     assign inst_JALR  = (inst_R & FUNC == 6'b001001);
-wire inst_MFHI;
-wire inst_MFLO;
-wire inst_MTHI;
-wire inst_MTLO;
+wire inst_MFHI;     assign inst_MFHI  = (inst_R & FUNC == 6'b010010);
+wire inst_MFLO;     assign inst_MFLO  = (inst_R & FUNC == 6'b010000);
+wire inst_MTHI;     assign inst_MTHI  = (inst_R & FUNC == 6'b010001);
+wire inst_MTLO;     assign inst_MTLO  = (inst_R & FUNC == 6'b010011);
 wire inst_M;        assign inst_M     = (inst_MTLO | inst_MTHI | inst_MFLO | inst_MFHI);
+wire inst_DIV;
+wire inst_DIVU;
+wire inst_MULT;
+wire inst_MULTU;
 //define b-type
 parameter type_BNE    = 4'b0000;
 parameter type_BEQ    = 4'b0001;
@@ -109,12 +118,12 @@ parameter alu_NOR  = 4'b1100;
 
 
 //data to regfiles
-assign fe_rs_addr = (~inst_M) ? {0,fe_inst[25:21]} :
+assign fe_rs_addr = (~inst_M) ? {1'b0,fe_inst[25:21]} :
                     (inst_MFHI)? 6'b100001:
                     (inst_MFLO)? 6'b100000:
                      6'b0;
 
-assign fe_rt_addr = {0,fe_inst[20:16]};
+assign fe_rt_addr = {1'b0,fe_inst[20:16]};
 
 //data to hazard unit
 assign de_rs_addr = (inst_SLL| inst_SRA | inst_SRL | inst_JAL) ? 6'd0:fe_rs_addr;
@@ -152,6 +161,9 @@ wire [3:0]  aluop_temp;
 wire [31:0] alusrc1_temp;
 wire [31:0] alusrc2_temp;
 
+wire [32:0] de_extend_rs_temp;
+wire [32:0] de_extend_rt_temp;
+
 assign sa_extend       = {27'b0,fe_inst[10:6]};
 
 assign signed_extend   = {{16{fe_inst[15]}},fe_inst[15:0]};
@@ -182,10 +194,15 @@ assign alusrc2_temp = (inst_R   ) ? de_rt_data :
                       (inst_SW   | inst_LW    | inst_SLTI   | inst_ADDI |
                        inst_SLTIU| inst_ADDIU | inst_LUI   ) ? signed_extend : 32'b0; 
 
+assign de_extend_rs_temp = ; //new
+assign de_extend_rt_temp = ; //new
+
 always @(posedge clk) begin
     de_aluop   <= aluop_temp;
     de_alusrc1 <= alusrc1_temp;
     de_alusrc2 <= alusrc2_temp;
+    de_extend_rs <= de_extend_rs_temp;
+    de_extend_rt <= de_extend_rt_temp;
 end
 
 
@@ -207,6 +224,9 @@ end
 wire reg_en_temp;
 wire mem_read_temp;
 wire [4:0] reg_waddr_temp;
+wire de_double_en_temp;
+wire de_mul_temp;
+wire de_div_temp;
 
 assign mem_read_temp  = (inst_LW) ? 1 : 0;
 
@@ -217,17 +237,26 @@ assign reg_en_temp    = (~stall) &
                           inst_ORI   | inst_XORI  | inst_BGEZAL|
                           inst_BLTZAL| inst_JALR  | inst_M) ? 1:0 );
 
-assign reg_waddr_temp = (inst_MTLO)? 6'b000000:
-                        (inst_MTHI)? 6'b000001:
-                        (inst_R    | inst_JALR  ) ? {0,fe_inst[15:11]} : //rd
+assign reg_waddr_temp = (inst_MTLO)? 6'b100000:
+                        (inst_MTHI)? 6'b100001:
+                        (inst_R    | inst_JALR  ) ? {1'b0,fe_inst[15:11]} : //rd
                         (inst_JAL  | inst_BGEZAL| inst_BLTZAL) ? 6'b011111:
                         (inst_LW   | inst_ADDIU | inst_ADDI| inst_SLTI | inst_SLTIU |
-                         inst_LUI  | inst_ANDI  | inst_ORI | inst_XORI ) ? {0,fe_inst[20:16]}: 6'b0; //rt
+                         inst_LUI  | inst_ANDI  | inst_ORI | inst_XORI ) ? {1'b0,fe_inst[20:16]}: 6'b0; //rt
+
+assign de_double_en_temp = (inst_DIV | inst_DIVU | inst_MULTU | inst_MULT);
+
+assign de_mul_temp = (inst_MULT | inst_MULTU);
+
+assign de_div_temp = (inst_DIVU | inst_DIV);
 
 always @(posedge clk) begin
     de_reg_en    <= reg_en_temp;
     de_mem_read  <= mem_read_temp;
     de_reg_waddr <= reg_waddr_temp;
+    de_double_en <= de_double_en_temp;
+    de_mul       <= de_mul_temp;
+    de_div       <= de_div_temp;
 end
 
 endmodule //decode_stage

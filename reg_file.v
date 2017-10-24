@@ -6,13 +6,17 @@
 module reg_file(
 	input clk,
 	input rstn,
+	input wen,
+	input double_wen,	//new
 	input [`ADDR_WIDTH - 1:0] waddr,
+	input [`DATA_WIDTH - 1:0] wdata,
+	input [63:0] double_wdata	//new
 	input [`ADDR_WIDTH - 1:0] raddr1,
 	input [`ADDR_WIDTH - 1:0] raddr2,
-	input wen,
-	input [`DATA_WIDTH - 1:0] wdata,
 	output [`DATA_WIDTH - 1:0] rdata1,
 	output [`DATA_WIDTH - 1:0] rdata2
+	
+	
 );
 
 	// TODO: insert your code
@@ -20,19 +24,21 @@ module reg_file(
 integer count;
 
 always @ (posedge clk)
- begin 
-
-        if(rstn==0)
+ begin
+        if(~rstn)
              for(count =0 ; count<`DATA_WIDTH ; count=count+1)
-              register[count] <= 0;
-         else if (wen)
-         begin
-         if(waddr)
-             register[waddr] <= wdata;
+              	register[count] <= 0;
+         else if (double_wen) begin
+         	 register[32] <= double_wdata[31:0];
+         	 register[33] <= double_wdata[63:32];
+         end
+         else (wen) begin
+         	if(waddr)
+            	register[waddr] <= wdata;
          end
    end 
   
 
 assign rdata1 =  register[raddr1];
-assign rdata2 = register[raddr2];
+assign rdata2 =  register[raddr2];
 endmodule
