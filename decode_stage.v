@@ -88,10 +88,10 @@ wire inst_MFLO;     assign inst_MFLO  = (inst_R & FUNC == 6'b010000);
 wire inst_MTHI;     assign inst_MTHI  = (inst_R & FUNC == 6'b010001);
 wire inst_MTLO;     assign inst_MTLO  = (inst_R & FUNC == 6'b010011);
 wire inst_M;        assign inst_M     = (inst_MTLO | inst_MTHI | inst_MFLO | inst_MFHI);
-wire inst_DIV;
-wire inst_DIVU;
-wire inst_MULT;
-wire inst_MULTU;
+wire inst_DIV;      assign inst_DIV   = (inst_R & FUNC == 6'b011010);
+wire inst_DIVU;     assign inst_DIVU  = (inst_R & FUNC == 6'b011011);
+wire inst_MULT;     assign inst_MULT  = (inst_R & FUNC == 6'b011000);
+wire inst_MULTU;    assign inst_MULTU = (inst_R & FUNC == 6'b011001);
 //define b-type
 parameter type_BNE    = 4'b0000;
 parameter type_BEQ    = 4'b0001;
@@ -188,14 +188,12 @@ assign aluop_temp   = (inst_NOR ) ? alu_NOR :
 assign alusrc1_temp = (inst_SLL  | inst_SRA    | inst_SRL   ) ? sa_extend : 
                       (inst_JAL  | inst_BLTZAL | inst_BGEZAL | inst_JALR) ? fe_pc : de_rs_data;
 
-assign alusrc2_temp = (inst_R   ) ? de_rt_data :
+assign alusrc2_temp = (inst_R    | inst_DIVU   | inst_DIV | inst_MULT  | inst_MULTU) ? de_rt_data :
                       (inst_ORI  | inst_XORI  | inst_ANDI  ) ? unsigned_extend :
                       (inst_JAL  | inst_BGEZAL| inst_BLTZAL | inst_JALR) ? 32'd8 :
                       (inst_SW   | inst_LW    | inst_SLTI   | inst_ADDI |
                        inst_SLTIU| inst_ADDIU | inst_LUI   ) ? signed_extend : 32'b0; 
 
-assign de_extend_rs_temp = ; //new
-assign de_extend_rt_temp = ; //new
 
 always @(posedge clk) begin
     de_aluop   <= aluop_temp;
