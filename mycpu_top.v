@@ -40,6 +40,11 @@ wire [25:0] de_j_index;
 wire [3:0]  de_aluop;
 wire [31:0] de_alusrc1;
 wire [31:0] de_alusrc2;
+wire        de_mult_en;
+wire        de_div_en;
+wire        de_is_signed;
+wire [31:0] de_MD_src1;
+wire [31:0] de_MD_src2;
 wire        de_mem_en;
 wire [3:0]  de_mem_wen;
 wire [31:0] de_mem_wdata;
@@ -52,11 +57,16 @@ wire exe_reg_en;
 wire exe_mem_read;
 wire [5:0] exe_reg_waddr;
 wire [31:0] alu_result_reg;
+wire exe_busy;
+wire exe_double_en;
+wire [63:0] exe_MD_result;
 //in mem stage, this is no special output signals
 //wb stage
 wire wb_reg_en;
 wire [5:0] wb_reg_waddr;
 wire [31:0] wb_reg_wdata;
+wire wb_double_en;
+wire wb_MD_result;
 
 // inst_sram is now a ROM
 assign inst_sram_wen   = 4'b0;
@@ -110,8 +120,10 @@ data_hazard_unit HazardUnit
 
     .exe_reg_en     (de_reg_en      ),
     .exe_reg_waddr  (de_reg_waddr   ),
-    .exe_reg_wdata      (alu_result     ),
+    .exe_reg_wdata  (alu_result     ),
     .exe_mem_read   (de_mem_read    ),
+    .exe_busy       (exe_busy       ),
+
     .mem_reg_en     (exe_reg_en     ),
     .mem_reg_waddr  (exe_reg_waddr  ),
     .mem_reg_wdata  (wb_reg_wdata   ),
@@ -132,7 +144,10 @@ reg_file cpu_regfile
 
     .wen        (wb_reg_en       ), 
     .waddr      (wb_reg_waddr    ), 
-    .wdata      (wb_reg_wdata    )  
+    .wdata      (wb_reg_wdata    ),
+
+    .double_en   (wb_double_en    ),
+    .double_wdata(wb_MD_result   )  
     );
 //decode
 decode_stage de_stage
@@ -162,6 +177,11 @@ decode_stage de_stage
     .de_aluop       (de_aluop       ),
     .de_alusrc1     (de_alusrc1     ),                                 
     .de_alusrc2     (de_alusrc2     ),
+    .de_mult_en     (de_mult_en     ),
+    .de_div_en      (de_div_en      ),
+    .de_is_signed   (de_is_signed   ),
+    .de_MD_src1     (de_MD_src1     ),
+    .de_MD_src2     (de_MD_src2     ),
 //signal for meme stage
     .de_mem_en      (de_mem_en      ),
     .de_mem_wen     (de_mem_wen     ), 
@@ -182,17 +202,26 @@ execute_stage exe_stage
     .de_aluop       (de_aluop       ), 
     .de_alusrc1     (de_alusrc1     ), 
     .de_alusrc2     (de_alusrc2     ), 
+    .de_mult_en     (de_mult_en     ),
+    .de_div_en      (de_div_en      ),
+    .de_is_signed   (de_is_signed   ),
+    .de_MD_src1     (de_MD_src1     ),
+    .de_MD_src2     (de_MD_src2     ),
 //data from de stage
     .de_reg_en      (de_reg_en      ),
     .de_mem_read    (de_mem_read    ),
     .de_reg_waddr   (de_reg_waddr   ),
 //data to mem stage
     .alu_result     (alu_result     ),
+//data to hazard unit
+    .exe_busy       (exe_busy       ),
 //data to wbstage
     .exe_reg_en     (exe_reg_en     ),
     .exe_mem_read   (exe_mem_read   ),
     .exe_reg_waddr  (exe_reg_waddr  ),
-    .alu_result_reg (alu_result_reg )
+    .alu_result_reg (alu_result_reg ),
+    .exe_double_en  (exe_double_en  ),
+    .exe_MD_result  (exe_MD_result  )
     );
 
 
@@ -225,10 +254,14 @@ writeback_stage wb_stage
     .exe_mem_read   (exe_mem_read   ),
     .alu_result_reg (alu_result_reg ),
     .mem_rdata      (data_sram_rdata),
+    .exe_double_en  (exe_double_en  ),
+    .exe_MD_result  (exe_MD_result  ),
 //data to regfile
     .wb_reg_en      (wb_reg_en      ),
     .wb_reg_waddr   (wb_reg_waddr   ),
-    .wb_reg_wdata   (wb_reg_wdata   )
+    .wb_reg_wdata   (wb_reg_wdata   ),
+    .wb_double_en   (wb_double_en   ),
+    .wb_MD_result   (wb_MD_result   )
     );
 
 

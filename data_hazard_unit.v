@@ -9,13 +9,12 @@ module data_hazard_unit(
 				input 			exe_reg_en,
 				input [5:0] 	exe_reg_waddr,
 				input [31:0] 	exe_reg_wdata,
-				input			exe_mem_read,
-				input           exe_double_en, //new
+				input			exe_mem_read, // for lw
+				input 			exe_busy,     // for mult and div  //new
 				//data from mem stage
 				input 			mem_reg_en,
 				input [5:0]		mem_reg_waddr,
 				input [31:0]    mem_reg_wdata, 
-				input 			mem_double_en, //new
 				//to de stage
 				output [31:0] 	de_rs_data,
 				output [31:0]   de_rt_data,
@@ -47,7 +46,7 @@ assign de_rt_data = (rt_exe_forward)? exe_reg_wdata: //exe stage forward data is
 				 	 reg_rt_data;
 
 //generate stall signal
-assign stall = ((exe_mem_read & exe_reg_waddr !== 0 & (de_rs_addr == exe_reg_waddr | de_rt_addr == exe_reg_waddr)) |
-				(exe_double_en & de_rs_addr[5]) | (mem_double_en & de_rs_addr[5]));
+assign stall = ((exe_mem_read & exe_reg_waddr !== 0 & 
+				(de_rs_addr == exe_reg_waddr | de_rt_addr == exe_reg_waddr)) | exe_busy);
 
 endmodule

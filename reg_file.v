@@ -7,7 +7,7 @@ module reg_file(
 	input clk,
 	input rstn,
 	input wen,
-	input double_wen,	//new
+	input double_en,	//new
 	input [`ADDR_WIDTH - 1:0] waddr,
 	input [`DATA_WIDTH - 1:0] wdata,
 	input [63:0] double_wdata	//new
