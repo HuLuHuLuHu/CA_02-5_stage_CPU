@@ -83,8 +83,8 @@ wire inst_SRL;      assign inst_SRL   = (inst_R & FUNC == 6'b000010);
 wire inst_SRAV;     assign inst_SRAV  = (inst_R & FUNC == 6'b000111);
 wire inst_SRLV;     assign inst_SRLV  = (inst_R & FUNC == 6'b000110);
 wire inst_JALR;     assign inst_JALR  = (inst_R & FUNC == 6'b001001);
-wire inst_MFHI;     assign inst_MFHI  = (inst_R & FUNC == 6'b010010);
-wire inst_MFLO;     assign inst_MFLO  = (inst_R & FUNC == 6'b010000);
+wire inst_MFHI;     assign inst_MFHI  = (inst_R & FUNC == 6'b010000);
+wire inst_MFLO;     assign inst_MFLO  = (inst_R & FUNC == 6'b010010);
 wire inst_MTHI;     assign inst_MTHI  = (inst_R & FUNC == 6'b010001);
 wire inst_MTLO;     assign inst_MTLO  = (inst_R & FUNC == 6'b010011);
 wire inst_M;        assign inst_M     = (inst_MTLO | inst_MTHI | inst_MFLO | inst_MFHI);
@@ -119,9 +119,9 @@ parameter alu_NOR  = 4'b1100;
 parameter reg_LO   = 6'b100000;
 parameter reg_HI   = 6'b100001;
 parameter reg_ra   = 6'b011111;
-wire extend_rs_addr;  assign extend_rs_addr = {1'b0,fe_inst[25:21]};
-wire extend_rt_addr;  assign extend_rt_addr = {1'b0,fe_inst[20:16]};
-wire extend_rd_addr;  assign extend_rd_addr = {1'b0,fe_inst[15:11]};
+wire [5:0] extend_rs_addr;  assign extend_rs_addr = {1'b0,fe_inst[25:21]};
+wire [5:0] extend_rt_addr;  assign extend_rt_addr = {1'b0,fe_inst[20:16]};
+wire [5:0] extend_rd_addr;  assign extend_rd_addr = {1'b0,fe_inst[15:11]};
 
 
 //data to regfiles
@@ -202,9 +202,10 @@ assign aluop_temp   = (inst_NOR ) ? alu_NOR :
 assign alusrc1_temp = (inst_SLL  | inst_SRA    | inst_SRL   ) ? sa_extend : 
                       (inst_JAL  | inst_BLTZAL | inst_BGEZAL | inst_JALR) ? fe_pc : de_rs_data;
 
-assign alusrc2_temp = (inst_R    | inst_DIVU   | inst_DIV    | inst_MULT  | inst_MULTU) ? de_rt_data :
+assign alusrc2_temp = (inst_JALR ) ? 32'd8:
+                      (inst_R    | inst_DIVU   | inst_DIV    | inst_MULT  | inst_MULTU) ? de_rt_data :
                       (inst_ORI  | inst_XORI   | inst_ANDI  ) ? unsigned_extend :
-                      (inst_JAL  | inst_BGEZAL | inst_BLTZAL | inst_JALR) ? 32'd8 :
+                      (inst_JAL  | inst_BGEZAL | inst_BLTZAL ) ? 32'd8 :
                       (inst_SW   | inst_LW     | inst_SLTI   | inst_ADDI  |
                        inst_SLTIU| inst_ADDIU  | inst_LUI   ) ? signed_extend : 32'b0; 
 

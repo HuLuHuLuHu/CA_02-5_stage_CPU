@@ -32,30 +32,34 @@ module execute_stage(
 
 wire mult_busy,div_busy;
 wire mult_complete,div_complete;
+wire [31:0] quotient,remainder;
 wire [63:0] mult_result,div_result;
 
 mul mul0
         (
         .clk(clk),
-        .enable(de_mult_en),
-        .is_signed(de_is_signed),
-        .src1(de_MD_src1),
-        .src2(de_MD_src2),
-        .result(mult_result)
-        .busy(mult_busy),
-        .complete(mult_complete)
+        .resetn(resetn),
+        .mul_en(de_mult_en),
+        .mul_signed(de_is_signed),
+        .x(de_MD_src1),
+        .y(de_MD_src2),
+        .result(mult_result),
+        .mul_busy(mult_busy),
+        .mul_complete(mult_complete)
             );
 
 div div0
         (
         .clk(clk),
-        .enable(de_div_en),
-        .is_signed(de_is_signed),
-        .src1(de_MD_src1),
-        .src2(de_MD_src2),
-        .result(div_result),
-        .busy(div_busy),
-        .complete(div_complete)
+        .resetn(resetn),
+        .div_en(de_div_en),
+        .div_signed(de_is_signed),
+        .dividend(de_MD_src1),
+        .divisor(de_MD_src2),
+        .quotient(quotient),
+        .remainder(remainder),
+        .div_busy(div_busy),
+        .div_complete(div_complete)
             ); 
 
 alu alu0 
@@ -65,6 +69,9 @@ alu alu0
     .B      ( de_alusrc2  ), 
     .Result ( alu_result  ) 
     );
+assign exe_busy      = mult_busy | div_busy;
+
+assign div_result    = {remainder,quotient};
 
 assign exe_double_en = mult_complete | div_complete;
 

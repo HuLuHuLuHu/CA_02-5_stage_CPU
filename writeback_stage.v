@@ -10,13 +10,13 @@ module writeback_stage(
     input  wire       [31:0] alu_result_reg,
     input  wire       [31:0] mem_rdata,
     input  wire              exe_double_en,
-    input  wire              exe_MD_result,
+    input  wire       [63:0] exe_MD_result,
 //data used in wb stage
     output wire              wb_reg_en,
     output wire       [5:0]  wb_reg_waddr,
     output wire       [31:0] wb_reg_wdata,
     output wire              wb_double_en,
-    output wire              wb_MD_result
+    output wire       [63:0]  wb_MD_result
 );
 
 

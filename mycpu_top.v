@@ -66,7 +66,7 @@ wire wb_reg_en;
 wire [5:0] wb_reg_waddr;
 wire [31:0] wb_reg_wdata;
 wire wb_double_en;
-wire wb_MD_result;
+wire [63:0] wb_MD_result;
 
 // inst_sram is now a ROM
 assign inst_sram_wen   = 4'b0;

@@ -10,7 +10,7 @@ module reg_file(
 	input double_en,	//new
 	input [`ADDR_WIDTH - 1:0] waddr,
 	input [`DATA_WIDTH - 1:0] wdata,
-	input [63:0] double_wdata	//new
+	input [63:0] double_wdata,	//new
 	input [`ADDR_WIDTH - 1:0] raddr1,
 	input [`ADDR_WIDTH - 1:0] raddr2,
 	output [`DATA_WIDTH - 1:0] rdata1,
@@ -28,14 +28,15 @@ always @ (posedge clk)
         if(~rstn)
              for(count =0 ; count<`DATA_WIDTH ; count=count+1)
               	register[count] <= 0;
-         else if (double_wen) begin
+         else if (double_en) begin
          	 register[32] <= double_wdata[31:0];
          	 register[33] <= double_wdata[63:32];
          end
-         else (wen) begin
+         else if (wen) begin
          	if(waddr)
             	register[waddr] <= wdata;
          end
+         else;
    end 
   
 
