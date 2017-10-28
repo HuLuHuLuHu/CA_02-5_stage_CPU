@@ -110,7 +110,7 @@ case (ALUop)
 
     SRA:
     begin
-    Result = $signed(B)>>>A;
+    Result = $signed(B)>>>A[4:0];
     Zero = 0;
     CarryOut = 0;
     Overflow = 0;
