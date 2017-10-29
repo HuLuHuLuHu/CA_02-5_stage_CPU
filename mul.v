@@ -13,8 +13,9 @@ module mul(
 );
 
 parameter START = 2'b00;
-parameter WORKING = 2'b01;
-parameter FINISH = 2'b10;
+parameter WORKING1 = 2'b01;
+parameter WORKING2 = 2'b10;
+parameter FINISH = 2'b11;
 
 reg [1:0] state;
 wire [1:0] next_state;
@@ -33,9 +34,9 @@ assign Y =  (resetn==0)? 'b0:
 
 mul1 mul1(.CLK(clk),.A(X_reg),.B(Y_reg),.P(Result));
 
-assign next_state = ((state==START)&mul_en)? WORKING :
-                    (state==START)?  START:
-                    (state==WORKING)? FINISH:
+assign next_state = ((state==START)&mul_en)? WORKING1 :
+                    (state == WORKING1)? WORKING2:
+                    (state==WORKING2)? FINISH:
                     (state==FINISH)? START:
                     START;
 
@@ -57,7 +58,7 @@ always @(posedge clk) begin
 	state <= next_state;
 	end
 
-	if(next_state==WORKING)
+	if(next_state==WORKING1|next_state==WORKING2|next_state==FINISH)
 	mul_busy <= 1;
 	else 
 	mul_busy <= 0;

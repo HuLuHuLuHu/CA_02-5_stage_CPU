@@ -93,10 +93,22 @@ assign exe_double_en = mult_complete | div_complete;
 assign exe_MD_result = (mult_complete)? mult_result:
                        (div_complete )? div_result :
                        64'b0;
+wire [3:0] SB_men_wen;
+wire [3:0] SH_mem_wen;
 wire [3:0] SWL_mem_wen;
 wire [3:0] SWR_mem_wen;
+wire [31:0] SB_mem_wdata;
+wire [31:0] SH_mem_wdata;
 wire [31:0] SWL_mem_wdata;
 wire [31:0] SWR_mem_wdata;
+
+assign SB_men_wen    = (alu_result[1:0] == 2'b00)? 4'b0001:
+                       (alu_result[1:0] == 2'b01)? 4'b0010:
+                       (alu_result[1:0] == 2'b10)? 4'b0100:
+                       (alu_result[1:0] == 2'b11)? 4'b1000: 4'b0000;
+
+assign SH_mem_wen    = (alu_result[1:0] == 2'b00)? 4'b0011:
+                       (alu_result[1:0] == 2'b10)? 4'b1100:4'b0000;
 
 assign SWL_mem_wen   = (alu_result[1:0] == 2'b00)? 4'b0001:
                        (alu_result[1:0] == 2'b01)? 4'b0011:
@@ -108,6 +120,14 @@ assign SWR_mem_wen   = (alu_result[1:0] == 2'b00)? 4'b1111:
                        (alu_result[1:0] == 2'b10)? 4'b1100:
                        (alu_result[1:0] == 2'b11)? 4'b1000: 4'b0000;
 
+assign SB_mem_wdata  = (alu_result[1:0] == 2'b00)? de_store_rt_data:
+                       (alu_result[1:0] == 2'b01)? de_store_rt_data << 8:
+                       (alu_result[1:0] == 2'b10)? de_store_rt_data << 16:
+                       (alu_result[1:0] == 2'b11)? de_store_rt_data << 24: 32'b0;
+
+assign SH_mem_wdata  = (alu_result[1:0] == 2'b00)? de_store_rt_data:
+                       (alu_result[1:0] == 2'b10)? de_store_rt_data << 16: 32'b0;
+
 assign SWL_mem_wdata = (alu_result[1:0] == 2'b00)? {24'b0,de_store_rt_data[31:24]}:
                        (alu_result[1:0] == 2'b01)? {16'b0,de_store_rt_data[31:16]}:
                        (alu_result[1:0] == 2'b10)? {8'b0 ,de_store_rt_data[31:8 ]}:
@@ -118,15 +138,16 @@ assign SWR_mem_wdata = (alu_result[1:0] == 2'b00)? de_store_rt_data :
                        (alu_result[1:0] == 2'b10)? {de_store_rt_data[15:0],16'b0}:
                        (alu_result[1:0] == 2'b11)? {de_store_rt_data[7:0],24'b0}: 32'b0;
 
+//data and control signals
 assign exe_mem_wen   = (de_store_type == type_SW) ? 4'b1111 : 
-                       (de_store_type == type_SB) ? 4'b0001 :
-                       (de_store_type == type_SH) ? 4'b0011 :
-                       (de_store_type == type_SWL)? SWL_mem_wen:
+                       (de_store_type == type_SB) ? SB_men_wen  :
+                       (de_store_type == type_SH) ? SH_mem_wen  :
+                       (de_store_type == type_SWL)? SWL_mem_wen :
                        (de_store_type == type_SWR)? SWR_mem_wen : 4'b0000;
 
 assign exe_mem_wdata = (de_store_type == type_SW) ? de_store_rt_data : 
-                       (de_store_type == type_SB) ? de_store_rt_data :
-                       (de_store_type == type_SH) ? de_store_rt_data :
+                       (de_store_type == type_SB) ? SB_mem_wdata     :
+                       (de_store_type == type_SH) ? SH_mem_wdata     :
                        (de_store_type == type_SWL)? SWL_mem_wdata    :
                        (de_store_type == type_SWR)? SWR_mem_wdata    : 32'b0;
 

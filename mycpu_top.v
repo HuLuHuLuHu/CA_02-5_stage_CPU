@@ -197,7 +197,7 @@ decode_stage de_stage
     .de_store_type  (de_store_type  ),
 //signal for meme stage
     .de_mem_en      (de_mem_en      ),
-    .de_mem_wdata   (de_mem_wdata   ), 
+    .de_store_rt_data   (de_store_rt_data   ), 
 //signal for wb stage
     .de_reg_en      (de_reg_en      ),
     .de_mem_read    (de_mem_read    ),

@@ -67,7 +67,7 @@ wire inst_XORI;     assign inst_XORI  = (OP == 6'b001110);
 //Load
 wire inst_LW;       assign inst_LW    = (OP == 6'b100011);
 wire inst_LB;       assign inst_LB    = (OP == 6'b100000);
-wire inst_LBU;      assign inst_LUB   = (OP == 6'b100100);
+wire inst_LBU;      assign inst_LBU   = (OP == 6'b100100);
 wire inst_LH;       assign inst_LH    = (OP == 6'b100001);
 wire inst_LHU;      assign inst_LHU   = (OP == 6'b100101);
 wire inst_LWL;      assign inst_LWL   = (OP == 6'b100010);
@@ -293,7 +293,7 @@ assign reg_waddr_temp = (inst_MTLO)? reg_LO:
 
 assign load_rt_data_temp = de_rt_data;
 
-assign load_type = (inst_LW) ? type_LW:
+assign load_type_temp = (inst_LW) ? type_LW:
                    (inst_LB) ? type_LB:
                    (inst_LBU)? type_LBU:
                    (inst_LH) ? type_LH:
