@@ -25,8 +25,9 @@ integer count;
 
 always @ (posedge clk)
  begin
-        if(~rstn)
-             for(count =0 ; count<`DATA_WIDTH ; count=count+1)
+        register[0] <= 32'b0;
+        if(0)
+             for(count =1 ; count<`DATA_WIDTH ; count=count+1)
               	register[count] <= 0;
          else if (double_en) begin
          	 register[32] <= double_wdata[31:0];

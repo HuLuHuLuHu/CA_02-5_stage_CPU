@@ -47,17 +47,16 @@ module PC_calculator(
 
 		assign inst_BGEZAL = (b_type == 4'b0111);
 
-		assign b_result = de_rs_data + ~de_rt_data + 1;
+		assign b_result = de_rs_data ^ de_rt_data;
 
-		assign b_taken = (inst_BNE    & b_result !== 0)? 1:
-						 (inst_BEQ    & b_result == 0 )? 1:
-						 (inst_BGEZ   &  ~de_rs_data[31])? 1:
-						 (inst_BGTZ   & de_rs_data !==   32'b0 & ~de_rs_data[31])? 1:
-						 (inst_BLEZ   & (de_rs_data ==32'b0 | de_rs_data[31]))? 1:
-						 (inst_BLTZ   & de_rs_data[31])? 1:
-						 (inst_BLTZAL & de_rs_data[31])? 1:
-						 (inst_BGEZAL & ~de_rs_data[31])? 1:
-						  0;
+		assign b_taken = (inst_BNE    & b_result !== 0)							  |
+						 (inst_BEQ    & b_result == 0 ) 						  |
+						 (inst_BGEZ   &  ~de_rs_data[31])                         |
+						 (inst_BGTZ   & de_rs_data !==   32'b0 & ~de_rs_data[31]) |
+						 (inst_BLEZ   & (de_rs_data ==32'b0 | de_rs_data[31]))    |
+						 (inst_BLTZ   & de_rs_data[31])  					      |
+						 (inst_BLTZAL & de_rs_data[31])                           |
+						 (inst_BGEZAL & ~de_rs_data[31]);
 
 		//three possible situation for next PC
 		assign b_addr = ({{16{b_offset[15]}},b_offset}<<2) + pc_reg;

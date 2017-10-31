@@ -158,10 +158,9 @@ wire [5:0] extend_rd_addr;  assign extend_rd_addr = {1'b0,fe_inst[15:11]};
 
 
 //data to regfiles
-assign fe_rs_addr = (~inst_MFHI & ~inst_MFLO) ?  extend_rs_addr :
-                    (inst_MFHI)? reg_HI:
-                    (inst_MFLO)? reg_LO:
-                     6'b0;
+assign fe_rs_addr = ({6{(~inst_MFHI & ~inst_MFLO)}} &  extend_rs_addr ) |
+                    ({6{inst_MFHI}} & reg_HI)|
+                    ({6{inst_MFLO}} & reg_LO);
 
 assign fe_rt_addr = extend_rt_addr;
 
@@ -203,9 +202,9 @@ wire [31:0] alusrc2_temp;
 
 wire [2:0] store_type_temp;
 
-assign de_mult_en      = inst_MULT | inst_MULTU;
+assign de_mult_en      = (inst_MULT | inst_MULTU) & (~stall);
 
-assign de_div_en       = inst_DIV  | inst_DIVU;
+assign de_div_en       = (inst_DIV  | inst_DIVU) & (~stall);
 
 assign de_is_signed    = inst_MULT | inst_DIV;
 
@@ -261,7 +260,7 @@ end
 //data for mem stage
 wire mem_en_temp;
 
-assign mem_en_temp  = (inst_LOAD  | inst_STORE )? 1 : 0;
+assign mem_en_temp  = ((inst_LOAD  | inst_STORE )? 1 : 0) & (~stall);
 
 always @(posedge clk) begin
     de_mem_en    <= mem_en_temp; 
@@ -275,7 +274,7 @@ wire [5:0] reg_waddr_temp;
 wire [2:0] load_type_temp;
 wire [31:0]load_rt_data_temp;
 
-assign mem_read_temp  = (inst_LOAD) ? 1 : 0;
+assign mem_read_temp  = ((inst_LOAD) ? 1 : 0) & (~stall);
 
 assign reg_en_temp    = (~stall) & 
                         ((inst_R     | inst_ADDIU | inst_ADDI  |

@@ -138,7 +138,8 @@ data_hazard_unit HazardUnit
 
     .mem_reg_en     (exe_reg_en     ),
     .mem_reg_waddr  (exe_reg_waddr  ),
-    .mem_reg_wdata  (wb_reg_wdata   ),
+    .mem_reg_wdata  (alu_result_reg ),
+    .mem_mem_read   (exe_mem_read   ),
 
     .de_rs_data     (de_rs_data     ),
     .de_rt_data     (de_rt_data     ),
