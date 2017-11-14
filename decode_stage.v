@@ -29,7 +29,7 @@ module decode_stage(
     output wire        de_is_signed,
     output wire [31:0] de_MD_src1,
     output wire [31:0] de_MD_src2,
-    output reg  [2:0]  de_store_type, //new delete one in mem stage
+    output reg  [2:0]  de_store_type,
 //signal for mem stage
     output reg         de_mem_en,
     output reg  [31:0] de_store_rt_data,
@@ -37,8 +37,15 @@ module decode_stage(
     output reg         de_reg_en,
     output reg         de_mem_read,
     output reg  [5:0]  de_reg_waddr,
-    output reg  [2:0]  de_load_type, //new
-    output reg  [31:0] de_load_rt_data  //new
+    output reg  [2:0]  de_load_type,
+    output reg  [31:0] de_load_rt_data,
+//execption signals
+    output wire  execption,
+    output wire  return,
+    output wire [31:0] return_addr,
+    output wire [31:0] de_STATUS,
+    output wire [31:0] de_CAUSE,
+    output wire [31:0] de_EPC
 );
 
 
@@ -110,7 +117,13 @@ wire inst_MFHI;     assign inst_MFHI  = (inst_R & FUNC == 6'b010000);
 wire inst_MFLO;     assign inst_MFLO  = (inst_R & FUNC == 6'b010010);
 wire inst_MTHI;     assign inst_MTHI  = (inst_R & FUNC == 6'b010001);
 wire inst_MTLO;     assign inst_MTLO  = (inst_R & FUNC == 6'b010011);
-wire inst_M;        assign inst_M     = (inst_MTLO | inst_MTHI | inst_MFLO | inst_MFHI);
+wire inst_MTC0;     assign inst_MTC0  = (OP == 6'b010000 & fe_inst[25:21] == 5'b00100);
+wire inst_MFC0;     assign inst_MFC0  = (OP == 6'b010000 & fe_inst[25:21] == 5'b00000);
+wire inst_M;        assign inst_M     = (inst_MTLO | inst_MTHI | inst_MFLO | inst_MFHI | inst_MFC0 | inst_MTC0);
+//exeptions
+wire inst_SYSCALL;   assign inst_SYSCALL = (inst_R & FUNC == 6'b001100);
+wire inst_ERET;      assign inst_ERET = (OP == 6'b010000 & fe_inst[25]);
+wire inst_execption; assign inst_execption = inst_SYSCALL;
 //define b-type
 parameter type_BNE    = 4'b0000;
 parameter type_BEQ    = 4'b0001;
@@ -149,20 +162,27 @@ parameter alu_LUI  = 4'b1010;
 parameter alu_XOR  = 4'b1011;
 parameter alu_NOR  = 4'b1100;
 //define extend registers
-parameter reg_LO   = 6'b100000;
-parameter reg_HI   = 6'b100001;
-parameter reg_ra   = 6'b011111;
+parameter reg_LO     = 6'b100000;
+parameter reg_HI     = 6'b100001;
+parameter reg_ra     = 6'b011111;
+parameter reg_STATUS = 6'b101100;
+parameter reg_CAUSE  = 6'b101101;
+parameter reg_EPC    = 6'b101110;
 wire [5:0] extend_rs_addr;  assign extend_rs_addr = {1'b0,fe_inst[25:21]};
 wire [5:0] extend_rt_addr;  assign extend_rt_addr = {1'b0,fe_inst[20:16]};
 wire [5:0] extend_rd_addr;  assign extend_rd_addr = {1'b0,fe_inst[15:11]};
+wire [5:0] CP0_rd_addr;     assign CP0_rd_addr    = {1'b1,fe_inst[15:11]};
 
 
 //data to regfiles
-assign fe_rs_addr = ({6{(~inst_MFHI & ~inst_MFLO)}} &  extend_rs_addr ) |
-                    ({6{inst_MFHI}} & reg_HI)|
-                    ({6{inst_MFLO}} & reg_LO);
+assign fe_rs_addr = (inst_execption)? reg_STATUS:
+					          (inst_MFC0)? CP0_rd_addr :
+					          (~inst_MFHI & ~inst_MFLO) ?  extend_rs_addr :
+                    (inst_MFHI)? reg_HI:
+                    (inst_MFLO)? reg_LO:
+                     6'b0;
 
-assign fe_rt_addr = extend_rt_addr;
+assign fe_rt_addr = (inst_ERET)? reg_EPC : extend_rt_addr;
 
 //data to hazard unit
 assign de_rs_addr = (inst_SLL| inst_SRA | inst_SRL | inst_JAL) ? 6'd0:fe_rs_addr;
@@ -202,9 +222,9 @@ wire [31:0] alusrc2_temp;
 
 wire [2:0] store_type_temp;
 
-assign de_mult_en      = (inst_MULT | inst_MULTU) & (~stall);
+assign de_mult_en      = inst_MULT | inst_MULTU;
 
-assign de_div_en       = (inst_DIV  | inst_DIVU) & (~stall);
+assign de_div_en       = inst_DIV  | inst_DIVU;
 
 assign de_is_signed    = inst_MULT | inst_DIV;
 
@@ -231,9 +251,10 @@ assign aluop_temp   = (inst_NOR ) ? alu_NOR :
                       (inst_SRL   | inst_SRLV ) ? alu_SRL :
                       (inst_ADDI  | inst_ADDIU | inst_LOAD | inst_STORE  |
                        inst_ADD   | inst_ADDU  | inst_JAL  | inst_BLTZAL | 
-                       inst_BGEZAL| inst_JALR  | inst_M ) ? alu_ADD : 4'b0000;
+                       inst_BGEZAL| inst_JALR  | inst_M    ) ? alu_ADD : 4'b0000;
 
-assign alusrc1_temp = (inst_SLL  | inst_SRA    | inst_SRL   ) ? sa_extend : 
+assign alusrc1_temp = (inst_MTC0) ? de_rt_data:
+					  (inst_SLL  | inst_SRA    | inst_SRL   ) ? sa_extend : 
                       (inst_JAL  | inst_BLTZAL | inst_BGEZAL | inst_JALR) ? fe_pc : de_rs_data;
 
 assign alusrc2_temp = (inst_JALR ) ? 32'd8:
@@ -260,7 +281,7 @@ end
 //data for mem stage
 wire mem_en_temp;
 
-assign mem_en_temp  = ((inst_LOAD  | inst_STORE )? 1 : 0) & (~stall);
+assign mem_en_temp  = (inst_LOAD  | inst_STORE )? 1 : 0;
 
 always @(posedge clk) begin
     de_mem_en    <= mem_en_temp; 
@@ -274,7 +295,7 @@ wire [5:0] reg_waddr_temp;
 wire [2:0] load_type_temp;
 wire [31:0]load_rt_data_temp;
 
-assign mem_read_temp  = ((inst_LOAD) ? 1 : 0) & (~stall);
+assign mem_read_temp  = (inst_LOAD) ? 1 : 0;
 
 assign reg_en_temp    = (~stall) & 
                         ((inst_R     | inst_ADDIU | inst_ADDI  |
@@ -283,12 +304,13 @@ assign reg_en_temp    = (~stall) &
                           inst_ORI   | inst_XORI  | inst_BGEZAL|
                           inst_BLTZAL| inst_JALR  | inst_M) ? 1:0 );
 
-assign reg_waddr_temp = (inst_MTLO)? reg_LO:
-                        (inst_MTHI)? reg_HI:
+assign reg_waddr_temp = (inst_MTLO) ? reg_LO:
+                        (inst_MTHI) ? reg_HI:
+                        (inst_MTC0) ? CP0_rd_addr:
                         (inst_R    | inst_JALR  ) ? extend_rd_addr : //rd
                         (inst_JAL  | inst_BGEZAL| inst_BLTZAL) ? reg_ra:
                         (inst_LOAD | inst_ADDIU | inst_ADDI| inst_SLTI | inst_SLTIU |
-                         inst_LUI  | inst_ANDI  | inst_ORI | inst_XORI ) ? extend_rt_addr: 6'b0; //rt
+                         inst_LUI  | inst_ANDI  | inst_ORI | inst_XORI | inst_MFC0 ) ? extend_rt_addr: 6'b0; //rt
 
 assign load_rt_data_temp = de_rt_data;
 
@@ -307,6 +329,14 @@ always @(posedge clk) begin
     de_load_type <= load_type_temp;
     de_load_rt_data <= load_rt_data_temp;
 end
+
+//signals for execption, now de_rs_data is reg_STATUS and de_rt_data is reg_EPC
+assign execption = ~de_rs_data[1] & inst_execption; //EXL must be zero
+assign return = inst_ERET;
+assign de_STATUS = 32'h00400002; //set EXL be 1
+assign de_EPC    = fe_pc;
+assign de_CAUSE  = 32'h00000020;
+assign return_addr = de_rt_data;
 
 endmodule //decode_stage
  

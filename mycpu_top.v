@@ -57,6 +57,13 @@ wire        de_mem_read;
 wire [5:0]  de_reg_waddr;
 wire [2:0]  de_load_type;
 wire [31:0] de_load_rt_data;
+
+wire execption;
+wire return;
+wire [31:0] return_addr;
+wire [31:0] de_STATUS;
+wire [31:0] de_CAUSE;
+wire [31:0] de_EPC;
 //exe stage
 wire [31:0] alu_result;
 wire [3:0]  exe_mem_wen;
@@ -91,6 +98,8 @@ PC_calculator PC_calculator
     .clk            (clk            ), 
     .resetn         (resetn         ), 
     .stall          (stall          ),
+    .execption      (execption      ),
+    .return         (return         ),
 //control signals from de stage
     .is_b           (de_is_b        ), 
     .is_j           (de_is_j        ), 
@@ -98,6 +107,7 @@ PC_calculator PC_calculator
     .b_type         (de_b_type      ), 
     .b_offset       (de_b_offset    ), 
     .j_index        (de_j_index     ), 
+    .return_addr    (return_addr    ),
 //data from de stage (forwarded)
     .de_rs_data     (de_rs_data     ), 
     .de_rt_data     (de_rt_data     ),
@@ -114,6 +124,8 @@ fetch_stage fetch_stage
     .clk            (clk            ), 
     .resetn         (resetn         ),
     .stall          (stall          ),
+    .execption      (execption      ),
+    .return         (return         ),
 //inputs from inst_ram and pc_caculator
     .inst_sram_rdata(inst_sram_rdata), 
     .inst_sram_raddr (current_pc     ), 
@@ -138,8 +150,7 @@ data_hazard_unit HazardUnit
 
     .mem_reg_en     (exe_reg_en     ),
     .mem_reg_waddr  (exe_reg_waddr  ),
-    .mem_reg_wdata  (alu_result_reg ),
-    .mem_mem_read   (exe_mem_read   ),
+    .mem_reg_wdata  (wb_reg_wdata   ),
 
     .de_rs_data     (de_rs_data     ),
     .de_rt_data     (de_rt_data     ),
@@ -150,6 +161,8 @@ reg_file cpu_regfile
     (
     .clk        (clk            ), 
     .rstn       (resetn         ),
+    .execption  (execption      ),
+
     .raddr1     (reg_raddr1     ), 
     .raddr2     (reg_raddr2     ), 
     .rdata1     (reg_rdata1     ), 
@@ -158,8 +171,11 @@ reg_file cpu_regfile
     .wen        (wb_reg_en       ), 
     .waddr      (wb_reg_waddr    ), 
     .wdata      (wb_reg_wdata    ),
+    .CP0_STATUS (de_STATUS       ),
+    .CP0_CAUSE  (de_CAUSE        ),
+    .CP0_EPC    (de_EPC          ),
 
-    .double_en   (wb_double_en    ),
+    .double_en   (wb_double_en   ),
     .double_wdata(wb_MD_result   )  
     );
 //decode
@@ -204,7 +220,14 @@ decode_stage de_stage
     .de_mem_read    (de_mem_read    ),
     .de_reg_waddr   (de_reg_waddr   ),
     .de_load_type   (de_load_type   ),
-    .de_load_rt_data(de_load_rt_data)
+    .de_load_rt_data(de_load_rt_data),
+//siganl for execption and return
+    .execption      (execption      ),
+    .return         (return         ),
+    .return_addr    (return_addr    ),
+    .de_STATUS      (de_STATUS      ),
+    .de_CAUSE       (de_CAUSE       ),
+    .de_EPC         (de_EPC         )
     );
 
 
@@ -213,6 +236,7 @@ execute_stage exe_stage
     (
     .clk            (clk            ), 
     .resetn         (resetn         ), 
+    .execption      (execption      ),
 //used in this stage                          
     .de_aluop       (de_aluop       ), 
     .de_alusrc1     (de_alusrc1     ), 
@@ -255,9 +279,9 @@ memory_stage mem_stage
     .resetn             (resetn         ),
 //data from de stage and exe stage
     .de_mem_en          (de_mem_en      ),                       
-    .exe_mem_wen        (exe_mem_wen     ),
+    .exe_mem_wen        (exe_mem_wen    ),
     .exe_mem_waddr      (alu_result     ), 
-    .exe_mem_wdata      (exe_mem_wdata    ),
+    .exe_mem_wdata      (exe_mem_wdata  ),
     
 //outputs, there is no registers in this stage 
     .data_sram_en       (data_sram_en   ),
@@ -271,6 +295,7 @@ writeback_stage wb_stage
     (
     .clk            (clk             ), 
     .resetn         (resetn          ),
+    .execption      (execption       ),
 //data from exe stage and mem stage
     .exe_reg_en     (exe_reg_en     ),
     .exe_reg_waddr  (exe_reg_waddr  ),

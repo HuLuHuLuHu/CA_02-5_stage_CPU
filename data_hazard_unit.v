@@ -9,13 +9,12 @@ module data_hazard_unit(
 				input 			exe_reg_en,
 				input [5:0] 	exe_reg_waddr,
 				input [31:0] 	exe_reg_wdata,
-				input			exe_mem_read, // for lw
-				input 			exe_busy,     // for mult and div  //new
+				input			exe_mem_read,
+				input 			exe_busy,
 				//data from mem stage
 				input 			mem_reg_en,
 				input [5:0]		mem_reg_waddr,
 				input [31:0]    mem_reg_wdata, 
-				input           mem_mem_read,
 				//to de stage
 				output [31:0] 	de_rs_data,
 				output [31:0]   de_rt_data,
@@ -33,9 +32,9 @@ assign rs_exe_forward = (exe_reg_en & exe_reg_waddr !== 0 & de_rs_addr == exe_re
 
 assign rt_exe_forward = (exe_reg_en & exe_reg_waddr !== 0 & de_rt_addr == exe_reg_waddr);
 
-assign rs_mem_forward = (mem_mem_read !== 1 & mem_reg_en & mem_reg_waddr !== 0 & de_rs_addr == mem_reg_waddr );
+assign rs_mem_forward = (mem_reg_en & mem_reg_waddr !== 0 & de_rs_addr == mem_reg_waddr );
 
-assign rt_mem_forward = (mem_mem_read !== 1 & mem_reg_en & mem_reg_waddr !== 0 & de_rt_addr == mem_reg_waddr);
+assign rt_mem_forward = (mem_reg_en & mem_reg_waddr !== 0 & de_rt_addr == mem_reg_waddr);
 
 //select real rs and rt data to de stage			
 assign de_rs_data = (rs_exe_forward)? exe_reg_wdata: //exe stage forward data is piror to mem stage
@@ -48,9 +47,6 @@ assign de_rt_data = (rt_exe_forward)? exe_reg_wdata: //exe stage forward data is
 
 //generate stall signal
 assign stall = ((exe_mem_read & exe_reg_waddr !== 0 & 
-				(de_rs_addr == exe_reg_waddr | de_rt_addr == exe_reg_waddr)) | exe_busy |
-				(mem_mem_read & mem_reg_waddr !== 0 & 
-				(de_rs_addr == mem_reg_waddr | de_rt_addr == mem_reg_waddr)));
-
+				(de_rs_addr == exe_reg_waddr | de_rt_addr == exe_reg_waddr)) | exe_busy);
 
 endmodule
