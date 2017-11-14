@@ -3,7 +3,6 @@
 module execute_stage(
     input  wire        clk,
     input  wire        resetn,
-    input  wire        execption,
 //data used in this stage
     input  wire [3:0]  de_aluop,
     input  wire [31:0] de_alusrc1,
@@ -16,7 +15,7 @@ module execute_stage(
 //data from de stage not used in this stage
     input  wire        de_reg_en,
     input  wire        de_mem_read,
-    input  wire [5:0]  de_reg_waddr,
+    input  wire [4:0]  de_reg_waddr,
     input  wire [2:0]  de_load_type, //new
     input  wire [31:0] de_load_rt_data,  //new
     input  wire [2:0]  de_store_type,   //new
@@ -30,9 +29,9 @@ module execute_stage(
 //data to wb stage 
     output reg         exe_reg_en,
     output reg         exe_mem_read,
-    output reg  [5:0]  exe_reg_waddr,
+    output reg  [4:0]  exe_reg_waddr,
     output reg  [31:0] alu_result_reg,
-    output wire        exe_double_en,
+    output wire        exe_MD_complete,
     output wire [63:0] exe_MD_result,
     output reg  [2:0]  exe_load_type,  //new
     output reg  [31:0] exe_load_rt_data  //new
@@ -88,7 +87,7 @@ assign exe_busy      = mult_busy | div_busy;
 
 assign div_result    = {remainder,quotient};
 
-assign exe_double_en = mult_complete | div_complete;
+assign exe_MD_complete = mult_complete | div_complete;
 
 assign exe_MD_result = (mult_complete)? mult_result:
                        (div_complete )? div_result :
@@ -153,7 +152,7 @@ assign exe_mem_wdata = (de_store_type == type_SW) ? de_store_rt_data :
 
 always @(posedge clk) begin
     alu_result_reg <= alu_result;
-    exe_reg_en     <= de_reg_en & (~(execption & de_reg_waddr[5]));
+    exe_reg_en     <= de_reg_en ;
     exe_reg_waddr  <= de_reg_waddr;
     exe_mem_read   <= de_mem_read;
     exe_load_type  <= de_load_type;

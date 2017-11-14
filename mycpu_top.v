@@ -28,18 +28,23 @@ wire [31:0] fe_inst;
 //data hazard unit
 wire stall;
 wire [31:0] de_rs_data,de_rt_data;
-//regfile
 wire [31:0] reg_rdata1,reg_rdata2;
-//de stage
-wire [5:0]  reg_raddr1,reg_raddr2;
-
-wire [5:0]  de_rs_addr,de_rt_addr;
-
+wire [4:0]  reg_raddr1,reg_raddr2;
+wire [4:0]  de_rs_addr,de_rt_addr;
+//CP0
+wire CP0_wen;
+wire [4:0]  CP0_raddr;
+wire [4:0]  CP0_waddr;
+wire [31:0] CP0_rdata;
+wire [31:0] CP0_wdata;
+wire [4:0]  ExcCode;
+wire [31:0] execption_pc;
+//pc
 wire        de_is_b,de_is_j,de_is_jr;
 wire [3:0]  de_b_type;
 wire [15:0] de_b_offset;
 wire [25:0] de_j_index;
-
+//exe
 wire [3:0]  de_aluop;
 wire [31:0] de_alusrc1;
 wire [31:0] de_alusrc2;
@@ -51,19 +56,16 @@ wire [31:0] de_MD_src2;
 wire [2:0]  de_store_type;
 wire        de_mem_en;
 wire [31:0] de_store_rt_data;
-
+//mem
 wire        de_reg_en;
 wire        de_mem_read;
-wire [5:0]  de_reg_waddr;
+wire [4:0]  de_reg_waddr;
 wire [2:0]  de_load_type;
 wire [31:0] de_load_rt_data;
 
 wire execption;
 wire return;
 wire [31:0] return_addr;
-wire [31:0] de_STATUS;
-wire [31:0] de_CAUSE;
-wire [31:0] de_EPC;
 //exe stage
 wire [31:0] alu_result;
 wire [3:0]  exe_mem_wen;
@@ -73,18 +75,17 @@ wire exe_busy;
 
 wire exe_reg_en;
 wire exe_mem_read;
-wire [5:0] exe_reg_waddr;
+wire [4:0] exe_reg_waddr;
 wire [31:0] alu_result_reg;
-wire exe_double_en;
+wire exe_MD_complete;
 wire [63:0] exe_MD_result;
 wire [2:0]  exe_load_type;
 wire [31:0] exe_load_rt_data;
-//in mem stage, this is no special output signals
 //wb stage
 wire wb_reg_en;
-wire [5:0] wb_reg_waddr;
+wire [4:0] wb_reg_waddr;
 wire [31:0] wb_reg_wdata;
-wire wb_double_en;
+wire wb_MD_complete;
 wire [63:0] wb_MD_result;
 
 // inst_sram is now a ROM
@@ -125,7 +126,6 @@ fetch_stage fetch_stage
     .resetn         (resetn         ),
     .stall          (stall          ),
     .execption      (execption      ),
-    .return         (return         ),
 //inputs from inst_ram and pc_caculator
     .inst_sram_rdata(inst_sram_rdata), 
     .inst_sram_raddr (current_pc     ), 
@@ -133,7 +133,21 @@ fetch_stage fetch_stage
     .fe_pc          (fe_pc          ), 
     .fe_inst        (fe_inst        )
     );
+CP0_regs CP0_coprocessor
+    (
+    .clk            (clk            ),
+    .rstn           (resetn         ),
+    .execption      (execption      ),
+    .wen            (CP0_wen        ),
+    .waddr          (CP0_waddr      ),
+    .wdata          (CP0_wdata      ),
+    .raddr          (CP0_raddr      ),
+    .rdata          (CP0_rdata      ),
+    .EPC            (return_addr    ),
+    .ExcCode        (ExcCode        ),
+    .execption_pc   (execption_pc   )
 
+    );
 //Hazard Unit
 data_hazard_unit HazardUnit
     (
@@ -161,7 +175,6 @@ reg_file cpu_regfile
     (
     .clk        (clk            ), 
     .rstn       (resetn         ),
-    .execption  (execption      ),
 
     .raddr1     (reg_raddr1     ), 
     .raddr2     (reg_raddr2     ), 
@@ -170,13 +183,7 @@ reg_file cpu_regfile
 
     .wen        (wb_reg_en       ), 
     .waddr      (wb_reg_waddr    ), 
-    .wdata      (wb_reg_wdata    ),
-    .CP0_STATUS (de_STATUS       ),
-    .CP0_CAUSE  (de_CAUSE        ),
-    .CP0_EPC    (de_EPC          ),
-
-    .double_en   (wb_double_en   ),
-    .double_wdata(wb_MD_result   )  
+    .wdata      (wb_reg_wdata    ) 
     );
 //decode
 decode_stage de_stage
@@ -190,6 +197,17 @@ decode_stage de_stage
 //data to regfile
     .fe_rs_addr     (reg_raddr1     ), //from Hazard Unit, which is correct
     .fe_rt_addr     (reg_raddr2     ),
+//data from mult and div
+    .wb_MD_complete (wb_MD_complete ),
+    .wb_MD_result   (wb_MD_result   ),
+//data to CP0_regs
+    .CP0_wen        (CP0_wen        ),
+    .CP0_raddr      (CP0_raddr      ),
+    .CP0_waddr      (CP0_waddr      ),
+    .CP0_rdata      (CP0_rdata      ),
+    .CP0_wdata      (CP0_wdata      ),
+    .ExcCode        (ExcCode        ),
+    .execption_pc   (execption_pc   ),
 //data to and from hazard unit
     .de_rs_addr     (de_rs_addr     ),
     .de_rt_addr     (de_rt_addr     ),
@@ -223,11 +241,7 @@ decode_stage de_stage
     .de_load_rt_data(de_load_rt_data),
 //siganl for execption and return
     .execption      (execption      ),
-    .return         (return         ),
-    .return_addr    (return_addr    ),
-    .de_STATUS      (de_STATUS      ),
-    .de_CAUSE       (de_CAUSE       ),
-    .de_EPC         (de_EPC         )
+    .return         (return         )
     );
 
 
@@ -236,7 +250,6 @@ execute_stage exe_stage
     (
     .clk            (clk            ), 
     .resetn         (resetn         ), 
-    .execption      (execption      ),
 //used in this stage                          
     .de_aluop       (de_aluop       ), 
     .de_alusrc1     (de_alusrc1     ), 
@@ -265,7 +278,7 @@ execute_stage exe_stage
     .exe_mem_read   (exe_mem_read   ),
     .exe_reg_waddr  (exe_reg_waddr  ),
     .alu_result_reg (alu_result_reg ),
-    .exe_double_en  (exe_double_en  ),
+    .exe_MD_complete(exe_MD_complete ),
     .exe_MD_result  (exe_MD_result  ),
     .exe_load_type  (exe_load_type  ),
     .exe_load_rt_data(exe_load_rt_data)
@@ -295,14 +308,13 @@ writeback_stage wb_stage
     (
     .clk            (clk             ), 
     .resetn         (resetn          ),
-    .execption      (execption       ),
 //data from exe stage and mem stage
     .exe_reg_en     (exe_reg_en     ),
     .exe_reg_waddr  (exe_reg_waddr  ),
     .exe_mem_read   (exe_mem_read   ),
     .alu_result_reg (alu_result_reg ),
     .mem_rdata      (data_sram_rdata),
-    .exe_double_en  (exe_double_en  ),
+    .exe_MD_complete(exe_MD_complete ),
     .exe_MD_result  (exe_MD_result  ),
     .exe_load_type  (exe_load_type  ),
     .exe_load_rt_data(exe_load_rt_data),
@@ -310,7 +322,7 @@ writeback_stage wb_stage
     .wb_reg_en      (wb_reg_en      ),
     .wb_reg_waddr   (wb_reg_waddr   ),
     .wb_reg_wdata   (wb_reg_wdata   ),
-    .wb_double_en   (wb_double_en   ),
+    .wb_MD_complete (wb_MD_complete  ),
     .wb_MD_result   (wb_MD_result   )
     );
 
@@ -325,8 +337,8 @@ begin
 end
 assign debug_wb_pc = exe_pc;
 assign debug_wb_rf_wdata = wb_reg_wdata;
-assign debug_wb_rf_wnum = wb_reg_waddr[4:0];
-assign debug_wb_rf_wen = (wb_reg_en & ~wb_reg_waddr[5])? 4'b1111:4'b0000;
+assign debug_wb_rf_wnum = wb_reg_waddr;
+assign debug_wb_rf_wen = (wb_reg_en)? 4'b1111:4'b0000;
 
 
 
