@@ -46,7 +46,7 @@ module execute_stage(
     input  wire  delay_slot,
     input  wire  possible_overflow,
     input  wire  interupt,
-    input  wire  CP0_EXL
+    input  wire  CP0_STATUS_EXL
 );
 //define load-type
 parameter type_LW     = 3'b000;
@@ -83,7 +83,7 @@ assign exec_BadStore = (de_store_type == type_SW  & alu_result[1:0] !== 2'b00) |
 
 assign exe_exec_vector[5] = interupt;
 
-assign exe_exec_vector[4] = de_exec_vector[4] & exec_BadStore & exec_BadLoad;
+assign exe_exec_vector[4] = de_exec_vector[4] | exec_BadStore | exec_BadLoad;
 
 assign exe_exec_vector[3] = de_exec_vector[3];
 
@@ -97,7 +97,7 @@ assign CP0_STATUS_BD        = delay_slot;
 
 assign CP0_BadVaddr         = (de_exec_vector[4])? de_pc : alu_result;
 
-assign execption            = (|exec_vector) & (~CP0_EXL);
+assign execption            = (|exe_exec_vector) & (~CP0_STATUS_EXL) & (~exe_busy);
 
 assign CP0_EPC              = (delay_slot)? de_pc - 32'd4 : de_pc;
 
@@ -205,7 +205,8 @@ assign SWR_mem_wdata = (alu_result[1:0] == 2'b00)? de_store_rt_data :
                        (alu_result[1:0] == 2'b11)? {de_store_rt_data[7:0],24'b0}: 32'b0;
 
 //data and control signals
-assign exe_mem_wen   = (de_store_type == type_SW) ? 4'b1111 : 
+assign exe_mem_wen   = (execption)?  4'b0000:
+                        (de_store_type == type_SW) ? 4'b1111 : 
                        (de_store_type == type_SB) ? SB_men_wen  :
                        (de_store_type == type_SH) ? SH_mem_wen  :
                        (de_store_type == type_SWL)? SWL_mem_wen :
@@ -219,7 +220,7 @@ assign exe_mem_wdata = (de_store_type == type_SW) ? de_store_rt_data :
 
 always @(posedge clk) begin
     alu_result_reg <= alu_result;
-    exe_reg_en     <= de_reg_en ;
+    exe_reg_en     <= de_reg_en &(~execption);
     exe_reg_waddr  <= de_reg_waddr;
     exe_mem_read   <= de_mem_read;
     exe_load_type  <= de_load_type;

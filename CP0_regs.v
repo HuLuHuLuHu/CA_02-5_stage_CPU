@@ -9,11 +9,12 @@ module CP0_regs(
 	output [31:0] rdata,
 //for execption
   input execption,
+  input return,
   input  [4:0]  CP0_CAUSE_ExcCode,
   input  [31:0] CP0_EPC,
   input  [5:0]  HW_IP,
   input  CP0_STATUS_BD,
-  input  CP0_BadVaddr,
+  input  [31:0] CP0_BadVaddr,
   output [31:0] return_addr,
   output CP0_STATUS_EXL,
   output interupt
@@ -40,11 +41,11 @@ always @ (posedge clk) begin
   if(~rstn)
     HW_IP_reg <= 6'b0;
   else
-    HW_IP_reg <= {TI,HW_IP[4:0]} & register[STATUS][15:10] & {6{register[STATUS][0]};
+    HW_IP_reg <= {TI,HW_IP[4:0]} & register[STATUS][15:10] & {6{register[STATUS][0]}};
 end
 
 //Software interupt
-assign SW_IP = register[Cause][9:8] & register[STATUS][9:8] & {2{register[STATUS][0]};
+assign SW_IP = register[Cause][9:8] & register[STATUS][9:8] & {2{register[STATUS][0]}};
 
 //make a timer
 reg timer;
@@ -52,7 +53,7 @@ always @ (posedge clk) begin
     if(~rstn)
        timer <= 1'b0;
     else 
-       timer <= timer + 1'b1;
+       timer <= ~timer;
 end
 
 always @ (posedge clk)
@@ -62,10 +63,11 @@ always @ (posedge clk)
               	register[counter] <= 0;
          else if (execption) begin
              register[STATUS]    <= register[STATUS] | EXL_MASK | {CP0_STATUS_BD,HW_IP_reg[5],30'b0};
-             register[Cause]     <= register[Cause]  | {16'b0,HW_IP_reg,3'b0,CP0_CAUSE_ExcCode,2'b0};
+             register[Cause]     <= {register[Cause][31:16],HW_IP_reg,register[Cause][9:7],CP0_CAUSE_ExcCode,2'b0};
              register[Exec_pc]   <= CP0_EPC;
              register[Addr]      <= CP0_BadVaddr;
          end
+         else if(return) register[STATUS] <= register[STATUS] & 32'hfffffffd;
          else if (wen) begin
             	register[waddr] <= wdata;
          end

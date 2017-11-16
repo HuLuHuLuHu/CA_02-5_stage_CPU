@@ -70,10 +70,7 @@ wire inst_BGEZ;     assign inst_BGEZ  = (OP == 6'b000001 & fe_inst[20:16] == 5'b
 wire inst_BLTZ;     assign inst_BLTZ  = (OP == 6'b000001 & fe_inst[20:16] == 5'b00000);
 wire inst_BLTZAL;   assign inst_BLTZAL= (OP == 6'b000001 & fe_inst[20:16] == 5'b10000);
 wire inst_BGEZAL;   assign inst_BGEZAL= (OP == 6'b000001 & fe_inst[20:16] == 5'b10001);
-//a J-type or B-type inst
-wire inst_JB;       assign inst_JB    = inst_J   | inst_JAL   |inst_JR    | inst_BEQ  |
-                                        inst_BNE | inst_BGTZ  |inst_BLEZ  | inst_BGEZ |
-                                        inst_BLTZ| inst_BLTZAL|inst_BGEZAL| inst_JALR;
+
 //I-type
 wire inst_ADDIU;    assign inst_ADDIU = (OP == 6'b001001);
 wire inst_ADDI;     assign inst_ADDI  = (OP == 6'b001000);
@@ -129,17 +126,22 @@ wire inst_MFHI;     assign inst_MFHI  = (inst_R & FUNC == 6'b010000);
 wire inst_MFLO;     assign inst_MFLO  = (inst_R & FUNC == 6'b010010);
 wire inst_MTHI;     assign inst_MTHI  = (inst_R & FUNC == 6'b010001);
 wire inst_MTLO;     assign inst_MTLO  = (inst_R & FUNC == 6'b010011);
-wire inst_MTC0;     assign inst_MTC0  = (OP == 6'b010000 & fe_inst[25:21] == 5'b00100);
-wire inst_MFC0;     assign inst_MFC0  = (OP == 6'b010000 & fe_inst[25:21] == 5'b00000);
+wire inst_MTC0;     assign inst_MTC0  = (OP == 6'b010000 & fe_inst[25:21] == 5'b00100 &fe_inst[10:3] == 8'b00000000);
+wire inst_MFC0;     assign inst_MFC0  = (OP == 6'b010000 & fe_inst[25:21] == 5'b00000 &fe_inst[10:3] == 8'b00000000);
 wire inst_MF;       assign inst_MF    = (inst_MFLO | inst_MFHI | inst_MFC0 );
 //exeptions
 wire inst_SYSCALL;   assign inst_SYSCALL = (inst_R & FUNC == 6'b001100);
-wire inst_ERET;      assign inst_ERET    = (OP == 6'b010000 & fe_inst[25]);
+wire inst_ERET;      assign inst_ERET    = (fe_inst == 32'b01000010000000000000000000011000);
 wire inst_BREAK;     assign inst_BREAK   = (inst_R & FUNC == 6'b001101);
+//a J-type or B-type inst
+wire inst_JB;       assign inst_JB    = inst_J   | inst_JAL   |inst_JR    | inst_BEQ  |
+                                        inst_BNE | inst_BGTZ  |inst_BLEZ  | inst_BGEZ |
+                                        inst_BLTZ| inst_BLTZAL|inst_BGEZAL| inst_JALR;
+                                        
 wire is_inst;
 assign is_inst  =  
-inst_J    |inst_JAL     |inst_BEQ   |inst_BNE  |inst_BGTZ |inst_BLEZ |inst_BGEZ |inst_BLTZ |inst_BLTZA|inst_LB   |
-inst_BGEZA|inst_ADDIU   |inst_ADDI  |inst_SLTI |inst_SLTIU|inst_LUI  |inst_ANDI |inst_ORI  |inst_XORI |inst_LW   |
+inst_J    |inst_JAL     |inst_BEQ   |inst_BNE  |inst_BGTZ |inst_BLEZ |inst_BGEZ |inst_BLTZ |inst_BLTZAL|inst_LB   |
+inst_BGEZAL|inst_ADDIU   |inst_ADDI  |inst_SLTI |inst_SLTIU|inst_LUI  |inst_ANDI |inst_ORI  |inst_XORI |inst_LW   |
 inst_LBU  |inst_LH      |inst_LHU   |inst_LWL  |inst_LWR  |inst_LOAD |inst_SW   |inst_SB   |inst_SH   |inst_SWL  |
 inst_SWR  |inst_STORE   |inst_BREAK |inst_ADD  |inst_OR   |inst_SLT  |inst_ADDU |inst_SUB  |inst_SLL  |inst_JR   |
 inst_AND  |inst_SLTU    |inst_SUBU  |inst_NOR  |inst_XOR  |inst_SRA  |inst_SLLV |inst_SRL  |inst_SRAV |inst_SRLV |
@@ -268,9 +270,9 @@ wire [31:0] alusrc2_temp;
 
 wire [2:0] store_type_temp;
 
-assign de_mult_en      = inst_MULT | inst_MULTU;
+assign de_mult_en      = (inst_MULT | inst_MULTU) & (~execption) ;
 
-assign de_div_en       = inst_DIV  | inst_DIVU;
+assign de_div_en       = (inst_DIV  | inst_DIVU) & (~execption);
 
 assign de_is_signed    = inst_MULT | inst_DIV;
 
@@ -329,7 +331,7 @@ end
 //data for mem stage
 wire mem_en_temp;
 
-assign mem_en_temp  = (~stall) & (~execption) ((inst_LOAD  | inst_STORE )? 1 : 0);
+assign mem_en_temp  = (~stall) & (~execption) & (inst_LOAD  | inst_STORE );
 
 always @(posedge clk) begin
     de_mem_en    <= mem_en_temp; 
@@ -346,11 +348,11 @@ wire [31:0]load_rt_data_temp;
 assign mem_read_temp  = (inst_LOAD) ? 1 : 0;
 
 assign reg_en_temp    = (~stall) & (~execption)
-                        ((inst_R     | inst_ADDIU | inst_ADDI  |
+                        & (inst_R     | inst_ADDIU | inst_ADDI  |
                           inst_SLTI  | inst_SLTIU | inst_LOAD  |
                           inst_LUI   | inst_JAL   | inst_ANDI  |
                           inst_ORI   | inst_XORI  | inst_BGEZAL|
-                          inst_BLTZAL| inst_JALR  | inst_MF) ? 1:0 );
+                          inst_BLTZAL| inst_JALR  | inst_MF);
 
 assign reg_waddr_temp = (inst_R    | inst_JALR  | inst_MFHI| inst_MFLO) ? fe_inst[15:11] : //rd
                         (inst_JAL  | inst_BGEZAL| inst_BLTZAL) ? 5'd31:

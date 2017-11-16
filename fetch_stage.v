@@ -2,6 +2,7 @@ module fetch_stage(
     input             clk,
     input             resetn,
     input 			  stall,
+    input             return,
     input             execption,
     input      [31:0] inst_sram_raddr,
     input      [31:0] inst_sram_rdata,
@@ -23,7 +24,7 @@ module fetch_stage(
 				fe_pc   <= fe_pc;
 				fe_inst <= fe_inst;
 			end
-		else if(execption)
+		else if(execption | return)
 		    begin
 		    	fe_pc   <= reset_pc;
 		    	fe_inst <= reset_inst;

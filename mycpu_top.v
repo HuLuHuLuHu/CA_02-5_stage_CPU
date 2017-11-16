@@ -135,6 +135,7 @@ fetch_stage fetch_stage
     .resetn         (resetn         ),
     .stall          (stall          ),
     .execption      (execption      ),
+    .return         (return         ),
 //inputs from inst_ram and pc_caculator
     .inst_sram_rdata(inst_sram_rdata), 
     .inst_sram_raddr (current_pc     ), 
@@ -146,13 +147,13 @@ CP0_regs CP0_coprocessor
     (
     .clk            (clk            ),
     .rstn           (resetn         ),
-    .execption      (execption      ),
     .wen            (CP0_wen        ),
     .waddr          (CP0_waddr      ),
     .wdata          (CP0_wdata      ),
     .raddr          (CP0_raddr      ),
     .rdata          (CP0_rdata      ),
     .execption      (execption      ),
+    .return         (return),
     .CP0_CAUSE_ExcCode(CP0_CAUSE_ExcCode ),
     .CP0_EPC        (CP0_EPC        ),
     //.HW_IP          (               ),
@@ -357,11 +358,11 @@ writeback_stage wb_stage
 
 
 //debug signals
-reg [31:0] de_pc;
+reg [31:0] des_pc;
 reg [31:0] exe_pc;
 always @ (posedge clk)
 begin
-	de_pc <= fe_pc;
+	des_pc <= fe_pc;
 	exe_pc <= de_pc;
 end
 assign debug_wb_pc = exe_pc;
