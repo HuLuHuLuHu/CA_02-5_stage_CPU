@@ -17,8 +17,6 @@ module decode_stage(
     output wire [4:0]  CP0_waddr,
     input  wire [31:0] CP0_rdata,
     output wire [31:0] CP0_wdata,
-    output wire [4:0]  ExcCode,
-    output wire [31:0] execption_pc,
 //data to and from hazard unit
     output wire [4:0]  de_rs_addr,
     output wire [4:0]  de_rt_addr,
@@ -51,8 +49,12 @@ module decode_stage(
     output reg  [2:0]  de_load_type,
     output reg  [31:0] de_load_rt_data,
 //execption signals
-    output wire  execption,
-    output wire  return
+    input  wire  execption,
+    output wire  return,
+    output reg   [5:0]  de_exec_vector, //detect some execptions
+    output reg   [31:0] de_pc,
+    output reg   delay_slot,
+    output reg   possible_overflow
 );
 
 wire [5:0] OP;    assign OP         = fe_inst[31:26];
@@ -68,6 +70,10 @@ wire inst_BGEZ;     assign inst_BGEZ  = (OP == 6'b000001 & fe_inst[20:16] == 5'b
 wire inst_BLTZ;     assign inst_BLTZ  = (OP == 6'b000001 & fe_inst[20:16] == 5'b00000);
 wire inst_BLTZAL;   assign inst_BLTZAL= (OP == 6'b000001 & fe_inst[20:16] == 5'b10000);
 wire inst_BGEZAL;   assign inst_BGEZAL= (OP == 6'b000001 & fe_inst[20:16] == 5'b10001);
+//a J-type or B-type inst
+wire inst_JB;       assign inst_JB    = inst_J   | inst_JAL   |inst_JR    | inst_BEQ  |
+                                        inst_BNE | inst_BGTZ  |inst_BLEZ  | inst_BGEZ |
+                                        inst_BLTZ| inst_BLTZAL|inst_BGEZAL| inst_JALR;
 //I-type
 wire inst_ADDIU;    assign inst_ADDIU = (OP == 6'b001001);
 wire inst_ADDI;     assign inst_ADDI  = (OP == 6'b001000);
@@ -128,7 +134,17 @@ wire inst_MFC0;     assign inst_MFC0  = (OP == 6'b010000 & fe_inst[25:21] == 5'b
 wire inst_MF;       assign inst_MF    = (inst_MFLO | inst_MFHI | inst_MFC0 );
 //exeptions
 wire inst_SYSCALL;   assign inst_SYSCALL = (inst_R & FUNC == 6'b001100);
-wire inst_ERET;      assign inst_ERET = (OP == 6'b010000 & fe_inst[25]);
+wire inst_ERET;      assign inst_ERET    = (OP == 6'b010000 & fe_inst[25]);
+wire inst_BREAK;     assign inst_BREAK   = (inst_R & FUNC == 6'b001101);
+wire is_inst;
+assign is_inst  =  
+inst_J    |inst_JAL     |inst_BEQ   |inst_BNE  |inst_BGTZ |inst_BLEZ |inst_BGEZ |inst_BLTZ |inst_BLTZA|inst_LB   |
+inst_BGEZA|inst_ADDIU   |inst_ADDI  |inst_SLTI |inst_SLTIU|inst_LUI  |inst_ANDI |inst_ORI  |inst_XORI |inst_LW   |
+inst_LBU  |inst_LH      |inst_LHU   |inst_LWL  |inst_LWR  |inst_LOAD |inst_SW   |inst_SB   |inst_SH   |inst_SWL  |
+inst_SWR  |inst_STORE   |inst_BREAK |inst_ADD  |inst_OR   |inst_SLT  |inst_ADDU |inst_SUB  |inst_SLL  |inst_JR   |
+inst_AND  |inst_SLTU    |inst_SUBU  |inst_NOR  |inst_XOR  |inst_SRA  |inst_SLLV |inst_SRL  |inst_SRAV |inst_SRLV |
+inst_JALR |inst_DIV     |inst_DIVU  |inst_MULT |inst_MULTU|inst_MFHI |inst_MFLO |inst_MTHI |inst_MTLO |inst_MTC0 |
+inst_MFC0 |inst_SYSCALL |inst_ERET ;
 //define b-type
 parameter type_BNE    = 4'b0000;
 parameter type_BEQ    = 4'b0001;
@@ -183,7 +199,7 @@ always @(posedge clk) begin
   else;
 end
 
-//signals for CP0 registers
+//signals for CP0 registers to implement mfc0 and mtc0
 assign CP0_wen   = inst_MTC0;
 
 assign CP0_waddr = fe_inst[15:11];
@@ -192,14 +208,27 @@ assign CP0_wdata = de_rt_data;
 
 assign CP0_raddr = fe_inst[15:11];
 
-//signals for execption and return
-assign execption = inst_SYSCALL;
-
+//signals for execption detection and return
 assign return = inst_ERET;
 
-assign ExcCode = 5'h8;
+//execption vector
+// interupt  BadVaddr  Reservation  Overflow   Syscall   Break
+//     5        4           3          2          1        0
+reg reg_JB;
+always @(posedge clk) begin
+  de_pc             <= fe_pc;
+  reg_JB            <= inst_JB;
+  delay_slot        <= reg_JB;
+  possible_overflow <= inst_ADDI | inst_ADD |inst_SUB;
+  de_exec_vector[5] <= 0;
+  de_exec_vector[4] <= ~(fe_pc[1:0] == 2'b00);
+  de_exec_vector[3] <= ~is_inst; //what to fill?
+  de_exec_vector[2] <= 0;
+  de_exec_vector[1] <= inst_SYSCALL;
+  de_exec_vector[0] <= inst_BREAK; 
+end
 
-assign execption_pc = fe_pc;
+
 
 //data to hazard unit
 assign de_rs_addr = (inst_SLL| inst_SRA | inst_SRL | inst_JAL)    ? 5'd0 : fe_rs_addr;
@@ -300,7 +329,7 @@ end
 //data for mem stage
 wire mem_en_temp;
 
-assign mem_en_temp  = (inst_LOAD  | inst_STORE )? 1 : 0;
+assign mem_en_temp  = (~stall) & (~execption) ((inst_LOAD  | inst_STORE )? 1 : 0);
 
 always @(posedge clk) begin
     de_mem_en    <= mem_en_temp; 
@@ -316,7 +345,7 @@ wire [31:0]load_rt_data_temp;
 
 assign mem_read_temp  = (inst_LOAD) ? 1 : 0;
 
-assign reg_en_temp    = (~stall) & 
+assign reg_en_temp    = (~stall) & (~execption)
                         ((inst_R     | inst_ADDIU | inst_ADDI  |
                           inst_SLTI  | inst_SLTIU | inst_LOAD  |
                           inst_LUI   | inst_JAL   | inst_ANDI  |
@@ -331,12 +360,12 @@ assign reg_waddr_temp = (inst_R    | inst_JALR  | inst_MFHI| inst_MFLO) ? fe_ins
 assign load_rt_data_temp = de_rt_data;
 
 assign load_type_temp = (inst_LW) ? type_LW:
-                   (inst_LB) ? type_LB:
-                   (inst_LBU)? type_LBU:
-                   (inst_LH) ? type_LH:
-                   (inst_LHU)? type_LHU:
-                   (inst_LWL)? type_LWL:
-                   (inst_LWR)? type_LWR:3'b111;
+                        (inst_LB) ? type_LB:
+                        (inst_LBU)? type_LBU:
+                        (inst_LH) ? type_LH:
+                        (inst_LHU)? type_LHU:
+                        (inst_LWL)? type_LWL:
+                        (inst_LWR)? type_LWR:3'b111;
 
 always @(posedge clk) begin
     de_reg_en    <= reg_en_temp;

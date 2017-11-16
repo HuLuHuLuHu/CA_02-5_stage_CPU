@@ -32,13 +32,14 @@ wire [31:0] reg_rdata1,reg_rdata2;
 wire [4:0]  reg_raddr1,reg_raddr2;
 wire [4:0]  de_rs_addr,de_rt_addr;
 //CP0
-wire CP0_wen;
-wire [4:0]  CP0_raddr;
-wire [4:0]  CP0_waddr;
 wire [31:0] CP0_rdata;
+wire [31:0] return_addr;
+wire CP0_STATUS_EXL;
+wire interupt;
+wire CP0_wen;
+wire [4:0] CP0_raddr;
+wire [4:0] CP0_waddr;
 wire [31:0] CP0_wdata;
-wire [4:0]  ExcCode;
-wire [31:0] execption_pc;
 //pc
 wire        de_is_b,de_is_j,de_is_jr;
 wire [3:0]  de_b_type;
@@ -62,10 +63,6 @@ wire        de_mem_read;
 wire [4:0]  de_reg_waddr;
 wire [2:0]  de_load_type;
 wire [31:0] de_load_rt_data;
-
-wire execption;
-wire return;
-wire [31:0] return_addr;
 //exe stage
 wire [31:0] alu_result;
 wire [3:0]  exe_mem_wen;
@@ -81,6 +78,18 @@ wire exe_MD_complete;
 wire [63:0] exe_MD_result;
 wire [2:0]  exe_load_type;
 wire [31:0] exe_load_rt_data;
+//execption
+wire return;
+wire [5:0] de_exec_vector;
+wire [31:0] de_pc;
+wire delay_slot;
+wire possible_overflow;
+wire execption;
+wire [4:0] CP0_CAUSE_ExcCode;
+wire [31:0] CP0_EPC;
+wire [31:0] CP0_BadVaddr;
+wire CP0_STATUS_BD;
+
 //wb stage
 wire wb_reg_en;
 wire [4:0] wb_reg_waddr;
@@ -143,9 +152,15 @@ CP0_regs CP0_coprocessor
     .wdata          (CP0_wdata      ),
     .raddr          (CP0_raddr      ),
     .rdata          (CP0_rdata      ),
-    .EPC            (return_addr    ),
-    .ExcCode        (ExcCode        ),
-    .execption_pc   (execption_pc   )
+    .execption      (execption      ),
+    .CP0_CAUSE_ExcCode(CP0_CAUSE_ExcCode ),
+    .CP0_EPC        (CP0_EPC        ),
+    //.HW_IP          (               ),
+    .CP0_STATUS_BD  (CP0_STATUS_BD  ),
+    .CP0_BadVaddr   (CP0_BadVaddr       ),
+    .return_addr    (return_addr    ),
+    .CP0_STATUS_EXL (CP0_STATUS_EXL ),
+    .interupt       (interupt       )
 
     );
 //Hazard Unit
@@ -206,8 +221,6 @@ decode_stage de_stage
     .CP0_waddr      (CP0_waddr      ),
     .CP0_rdata      (CP0_rdata      ),
     .CP0_wdata      (CP0_wdata      ),
-    .ExcCode        (ExcCode        ),
-    .execption_pc   (execption_pc   ),
 //data to and from hazard unit
     .de_rs_addr     (de_rs_addr     ),
     .de_rt_addr     (de_rt_addr     ),
@@ -232,7 +245,7 @@ decode_stage de_stage
     .de_store_type  (de_store_type  ),
 //signal for meme stage
     .de_mem_en      (de_mem_en      ),
-    .de_store_rt_data   (de_store_rt_data   ), 
+    .de_store_rt_data(de_store_rt_data ), 
 //signal for wb stage
     .de_reg_en      (de_reg_en      ),
     .de_mem_read    (de_mem_read    ),
@@ -241,7 +254,11 @@ decode_stage de_stage
     .de_load_rt_data(de_load_rt_data),
 //siganl for execption and return
     .execption      (execption      ),
-    .return         (return         )
+    .return         (return         ),
+    .de_exec_vector (de_exec_vector ),
+    .de_pc          (de_pc          ),
+    .delay_slot     (delay_slot     ),
+    .possible_overflow (possible_overflow)
     );
 
 
@@ -281,7 +298,19 @@ execute_stage exe_stage
     .exe_MD_complete(exe_MD_complete ),
     .exe_MD_result  (exe_MD_result  ),
     .exe_load_type  (exe_load_type  ),
-    .exe_load_rt_data(exe_load_rt_data)
+    .exe_load_rt_data(exe_load_rt_data),
+//data for execption
+    .execption        (execption        ),
+    .CP0_CAUSE_ExcCode(CP0_CAUSE_ExcCode),
+    .CP0_EPC          (CP0_EPC          ),
+    .CP0_BadVaddr     (CP0_BadVaddr     ),
+    .CP0_STATUS_BD    (CP0_STATUS_BD    ),
+    .de_exec_vector   (de_exec_vector   ),
+    .de_pc            (de_pc            ),
+    .delay_slot       (delay_slot       ),
+    .possible_overflow(possible_overflow),
+    .interupt         (interupt         ),
+    .CP0_STATUS_EXL   (CP0_STATUS_EXL   )
     );
 
 
