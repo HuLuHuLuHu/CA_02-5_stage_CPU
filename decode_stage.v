@@ -242,12 +242,12 @@ assign de_b_offset= fe_inst[15:0];
 
 assign de_j_index = fe_inst[25:0];
 
-assign de_is_jr   = (inst_JR | inst_JALR) ? 1:0;
+assign de_is_jr   = (inst_JR | inst_JALR) & (~execption);
 
-assign de_is_j    = (inst_J  | inst_JAL ) ? 1:0;
+assign de_is_j    = (inst_J  | inst_JAL )&(~execption);
 
 assign de_is_b    = (inst_BEQ  | inst_BNE  | inst_BGEZ   | inst_BGTZ  |
-                     inst_BLEZ | inst_BLTZ | inst_BLTZAL | inst_BGEZAL ) ? 1:0;
+                     inst_BLEZ | inst_BLTZ | inst_BLTZAL | inst_BGEZAL ) & (~execption);
 
 assign de_b_type  = (inst_BEQ   ) ? type_BEQ :
                     (inst_BNE   ) ? type_BNE : 

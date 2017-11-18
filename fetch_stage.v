@@ -19,16 +19,17 @@ module fetch_stage(
 				fe_pc   <= reset_pc;
 				fe_inst <= reset_inst;
 			end
+        else if(execption | return)
+                begin
+                    fe_pc   <= reset_pc;
+                    fe_inst <= reset_inst;
+                end
 		else if(stall) 
 			begin
 				fe_pc   <= fe_pc;
 				fe_inst <= fe_inst;
 			end
-		else if(execption | return)
-		    begin
-		    	fe_pc   <= reset_pc;
-		    	fe_inst <= reset_inst;
-		    end
+
 		else  
 			begin
 				fe_pc   <= inst_sram_raddr;
