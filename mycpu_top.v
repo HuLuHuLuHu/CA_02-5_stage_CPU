@@ -7,7 +7,7 @@ module mycpu_top(
     output wire [31:0] inst_sram_addr,
     output wire [31:0] inst_sram_wdata,
     input  wire [31:0] inst_sram_rdata,
-    
+    input  wire [15:0] btn_key_r,
     output wire        data_sram_en,
     output wire [ 3:0] data_sram_wen,
     output wire [31:0] data_sram_addr,
@@ -161,7 +161,8 @@ CP0_regs CP0_coprocessor
     .CP0_BadVaddr   (CP0_BadVaddr       ),
     .return_addr    (return_addr    ),
     .CP0_STATUS_EXL (CP0_STATUS_EXL ),
-    .interupt       (interupt       )
+    .interupt       (interupt       ),
+    .btn_key_r      (btn_key_r)
 
     );
 //Hazard Unit
