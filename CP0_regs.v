@@ -18,7 +18,8 @@ module CP0_regs(
   output [31:0] return_addr,
   output CP0_STATUS_EXL,
   output interupt,
-  input wire [15:0]btn_key_r
+  input wire [15:0]btn_key_r,
+  output wire soft_int
 );
 reg [31:0] register [31:0]; 
 integer counter;
@@ -38,8 +39,7 @@ wire [1:0]  SW_IP;
 wire        TI; //timer interupt
 //Hardware interupt
 assign TI = (register[Count] == register[Compare]) & (register[Compare]!=='b0);
-assign HW_IP[4:1] = 4'b0;
-assign HW_IP[0] = btn_key_r[12];
+assign HW_IP[4:0] = 5'b0;
 always @ (posedge clk) begin
   if(~rstn)  begin
     HW_IP_reg <= 6'b0;
@@ -84,6 +84,8 @@ always @ (posedge clk)
          else if (wen) begin
             if(waddr == Cause)
             register[waddr] <= (wdata & 32'b1100_1000_1000_0000_11111111_0_11111_00);
+            else if(waddr==Compare)
+            register[waddr] <= wdata + 32'd100;
             else
             	register[waddr] <= wdata;
          end
@@ -101,4 +103,5 @@ assign return_addr   =  register[Exec_pc];
 assign CP0_STATUS_EXL=  register[STATUS][1];
 
 assign interupt      =  (|HW_IP_reg) | (|SW_IP_reg);
+assign soft_int      =  |SW_IP_reg;
 endmodule

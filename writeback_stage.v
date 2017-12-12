@@ -3,6 +3,7 @@
 module writeback_stage(
     input  wire              clk,
     input  wire              resetn,
+    input  wire              stop,
 //data from exe stage and mem stage
     input  wire              exe_reg_en,
     input  wire       [5:0]  exe_reg_waddr,
@@ -64,7 +65,7 @@ assign load_data = (exe_load_type == type_LW) ? mem_rdata:
                    (exe_load_type == type_LWR)? LWR_data:
                    32'b0;
 
-assign wb_reg_en    =  exe_reg_en ;
+assign wb_reg_en    =  exe_reg_en & ~stop;
 assign wb_reg_waddr =  exe_reg_waddr;
 assign wb_reg_wdata = (exe_mem_read) ? load_data : alu_result_reg;
 assign wb_MD_complete =  exe_MD_complete;

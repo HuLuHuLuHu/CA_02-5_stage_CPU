@@ -44,6 +44,7 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //   > Author      : LOONGSON
 //   > Date        : 2017-08-04
 //*************************************************************************
+`define RANDOM_SEED {7'b1010101,16'h0000}
 
 `define CR0_ADDR       16'h8000   //32'hffff_8000 
 `define CR1_ADDR       16'h8004   //32'hffff_8004 
@@ -70,15 +71,55 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 module confreg
 #(parameter SIMULATION=1'b0)
 (                     
-    input             clk,          
     input             timer_clk,
-    input             resetn,     
+    input             aclk,          
+    input             aresetn,     
     // read and write from cpu
-	input             conf_en,      
-	input      [3 :0] conf_wen,      
-	input      [31:0] conf_addr,    
-	input      [31:0] conf_wdata,   
-	output     [31:0] conf_rdata,   
+    //ar
+    input  [3 :0] arid   ,
+    input  [31:0] araddr ,
+    input  [7 :0] arlen  ,
+    input  [2 :0] arsize ,
+    input  [1 :0] arburst,
+    input  [1 :0] arlock ,
+    input  [3 :0] arcache,
+    input  [2 :0] arprot ,
+    input         arvalid,
+    output        arready,
+    //r
+    output [3 :0] rid    ,
+    output [31:0] rdata  ,
+    output [1 :0] rresp  ,
+    output        rlast  ,
+    output        rvalid ,
+    input         rready ,
+    //aw
+    input  [3 :0] awid   ,
+    input  [31:0] awaddr ,
+    input  [7 :0] awlen  ,
+    input  [2 :0] awsize ,
+    input  [1 :0] awburst,
+    input  [1 :0] awlock ,
+    input  [3 :0] awcache,
+    input  [2 :0] awprot ,
+    input         awvalid,
+    output        awready,
+    //w
+    input  [3 :0] wid    ,
+    input  [31:0] wdata  ,
+    input  [3 :0] wstrb  ,
+    input         wlast  ,
+    input         wvalid ,
+    output        wready ,
+    //b
+    output [3 :0] bid    ,
+    output [1 :0] bresp  ,
+    output        bvalid ,
+    input         bready ,
+
+    //for lab6
+    output            ram_random_mask  ,
+
     // read and write to device on board
     output     [15:0] led,          
     output     [1 :0] led_rg0,      
@@ -87,8 +128,7 @@ module confreg
     output reg [6 :0] num_a_g,      
     input      [7 :0] switch,       
     output     [3 :0] btn_key_col,  
-    input      [3 :0] btn_key_row,
-    output     [15:0] btn_key_r,
+    input      [3 :0] btn_key_row,  
     input      [1 :0] btn_step      
 );
     reg  [31:0] cr0;
@@ -113,18 +153,81 @@ module confreg
     reg         open_trace;
     reg         num_monitor;
                         
+//--------------------------{axi interface}begin-------------------------//
+    reg busy,write,R_or_W;
+    reg s_wready;
+
+    wire ar_enter = arvalid & arready;
+    wire r_retire = rvalid  & rready & rlast;
+    wire aw_enter = awvalid & awready;
+    wire w_enter  = wvalid  & wready & wlast;
+    wire b_retire = bvalid  & bready;
+
+    assign arready = ~busy & (!R_or_W| !awvalid);
+    assign awready = ~busy & ( R_or_W| !arvalid);
+
+    reg [3 :0] buf_id;
+    reg [31:0] buf_addr;
+    reg [7 :0] buf_len;
+    reg [2 :0] buf_size;
+    
+    always @(posedge aclk)
+    begin
+        if(~aresetn) busy <= 1'b0;
+        else if(ar_enter|aw_enter) busy <= 1'b1;
+        else if(r_retire|b_retire) busy <= 1'b0;
+    end
+    
+    always @(posedge aclk)
+    begin
+        if(~aresetn)
+        begin
+            R_or_W      <= 1'b0;
+            buf_id      <= 4'b0;
+            buf_addr    <= 32'b0;
+            buf_len     <= 8'b0;
+            buf_size    <= 3'b0;
+        end
+        else
+        if(ar_enter | aw_enter)
+        begin
+            R_or_W      <= ar_enter;
+            buf_id      <= ar_enter ? arid   : awid   ;
+            buf_addr    <= ar_enter ? araddr : awaddr ;
+            buf_len     <= ar_enter ? arlen  : awlen  ;
+            buf_size    <= ar_enter ? arsize : awsize ;
+        end
+    end
+    
+    reg conf_wready_reg;
+    assign wready = conf_wready_reg;
+    always@(posedge aclk)
+    begin
+        if     (~aresetn       ) conf_wready_reg <= 1'b0;
+        else if(aw_enter       ) conf_wready_reg <= 1'b1;
+        else if(w_enter & wlast) conf_wready_reg <= 1'b0;
+    end
+    
     // read data has one cycle delay
     reg [31:0] conf_rdata_reg;
-    assign conf_rdata = conf_rdata_reg;
-    always @(posedge clk)
+    reg        conf_rvalid_reg;
+    reg        conf_rlast_reg;
+    assign rdata  = conf_rdata_reg;
+    assign rvalid = conf_rvalid_reg;
+    assign rlast  = conf_rlast_reg;
+    always @(posedge aclk)
     begin
-        if(~resetn)
+        if(~aresetn)
         begin
-            conf_rdata_reg <= 32'd0;
+            conf_rdata_reg  <= 32'd0;
+            conf_rvalid_reg <= 1'd0;
+            conf_rlast_reg  <= 1'd0;
         end
-        else if (conf_en)
+        else if(busy & R_or_W & !r_retire)
         begin
-            case (conf_addr[15:0])
+            conf_rvalid_reg <= 1'd1;
+            conf_rlast_reg  <= 1'd1;
+            case (buf_addr[15:0])
                 `CR0_ADDR      : conf_rdata_reg <= cr0          ;
                 `CR1_ADDR      : conf_rdata_reg <= cr1          ;
                 `CR2_ADDR      : conf_rdata_reg <= cr2          ;
@@ -148,10 +251,34 @@ module confreg
                 default        : conf_rdata_reg <= 32'd0;
             endcase
         end
+        else if(r_retire)
+        begin
+            conf_rvalid_reg <= 1'b0;
+        end
     end
 
     //conf write, only support a word write
-    assign conf_we = conf_en & (|conf_wen);
+    wire        conf_we;
+    wire [31:0] conf_addr;
+    wire [31:0] conf_wdata;
+    assign conf_we   = w_enter;
+    assign conf_addr = buf_addr;
+    assign conf_wdata= wdata;
+
+    reg conf_bvalid_reg;
+    assign bvalid = conf_bvalid_reg;
+    always @(posedge aclk)   
+    begin
+        if     (~aresetn) conf_bvalid_reg <= 1'b0;
+        else if(w_enter ) conf_bvalid_reg <= 1'b1;
+        else if(b_retire) conf_bvalid_reg <= 1'b0;
+    end
+
+    assign rid   = buf_id;
+    assign bid   = buf_id;
+    assign bresp = 2'b0;
+    assign rresp = 2'b0;
+//---------------------------{axi interface}end--------------------------//
 
 //-------------------------{confreg register}begin-----------------------//
 wire write_cr0 = conf_we & (conf_addr[15:0]==`CR0_ADDR);
@@ -162,23 +289,23 @@ wire write_cr4 = conf_we & (conf_addr[15:0]==`CR4_ADDR);
 wire write_cr5 = conf_we & (conf_addr[15:0]==`CR5_ADDR);
 wire write_cr6 = conf_we & (conf_addr[15:0]==`CR6_ADDR);
 wire write_cr7 = conf_we & (conf_addr[15:0]==`CR7_ADDR);
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    cr0 <= !resetn    ? 32'd0      :
+    cr0 <= !aresetn    ? 32'd0      :
            write_cr0 ? conf_wdata : cr0;
-    cr1 <= !resetn    ? 32'd0      :
+    cr1 <= !aresetn    ? 32'd0      :
            write_cr1 ? conf_wdata : cr1;
-    cr2 <= !resetn    ? 32'd0      :
+    cr2 <= !aresetn    ? 32'd0      :
            write_cr2 ? conf_wdata : cr2;
-    cr3 <= !resetn    ? 32'd0      :
+    cr3 <= !aresetn    ? 32'd0      :
            write_cr3 ? conf_wdata : cr3;
-    cr4 <= !resetn    ? 32'd0      :
+    cr4 <= !aresetn    ? 32'd0      :
            write_cr4 ? conf_wdata : cr4;
-    cr5 <= !resetn    ? 32'd0      :
+    cr5 <= !aresetn    ? 32'd0      :
            write_cr5 ? conf_wdata : cr5;
-    cr6 <= !resetn    ? 32'd0      :
+    cr6 <= !aresetn    ? 32'd0      :
            write_cr6 ? conf_wdata : cr6;
-    cr7 <= !resetn    ? 32'd0      :
+    cr7 <= !aresetn    ? 32'd0      :
            write_cr7 ? conf_wdata : cr7;
 end
 //--------------------------{confreg register}end------------------------//
@@ -188,10 +315,13 @@ reg         write_timer_begin,write_timer_begin_r1, write_timer_begin_r2,write_t
 reg         write_timer_end_r1, write_timer_end_r2;
 reg  [31:0] conf_wdata_r, conf_wdata_r1,conf_wdata_r2;
 
+reg  [31:0] timer_r1;
+reg  [31:0] timer;
+
 wire write_timer = conf_we & (conf_addr[15:0]==`TIMER_ADDR);
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if (!resetn)
+    if (!aresetn)
     begin
         write_timer_begin <= 1'b0;
     end 
@@ -217,7 +347,7 @@ begin
     conf_wdata_r1        <= conf_wdata_r;
     conf_wdata_r2        <= conf_wdata_r1;
 
-    if(!resetn)
+    if(!aresetn)
     begin
         timer <= 32'd0;
     end
@@ -231,10 +361,7 @@ begin
     end
 end
 
-reg  [31:0] timer_r1;
-reg  [31:0] timer;
-
-always @(posedge clk)
+always @(posedge aclk)
 begin
     timer_r1 <= timer;
     timer_r2 <= timer_r1;
@@ -242,9 +369,9 @@ end
 //--------------------------------{timer}end-----------------------------//
 
 //--------------------------{simulation flag}begin-----------------------//
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if(!resetn)
+    if(!aresetn)
     begin
         simu_flag <= {32{SIMULATION}};
     end
@@ -253,9 +380,9 @@ end
 
 //-----------------------------{open trace}begin-------------------------//
 wire write_open_trace = conf_we & (conf_addr[15:0]==`OPEN_TRACE_ADDR);
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if(!resetn)
+    if(!aresetn)
     begin
         open_trace <= 1'b1;
     end
@@ -268,9 +395,9 @@ end
 
 //----------------------------{num monitor}begin-------------------------//
 wire write_num_monitor = conf_we & (conf_addr[15:0]==`NUM_MONITOR_ADDR);
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if(!resetn)
+    if(!aresetn)
     begin
         num_monitor <= 1'b1;
     end
@@ -285,9 +412,9 @@ end
 wire [7:0] write_uart_data;
 wire write_uart_valid  = conf_we & (conf_addr[15:0]==`VIRTUAL_UART_ADDR);
 assign write_uart_data = conf_wdata[7:0];
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if(!resetn)
+    if(!aresetn)
     begin
         virtual_uart_data <= 8'd0;
     end
@@ -298,14 +425,36 @@ begin
 end
 //----------------------------{virtual uart}end--------------------------//
 
+//--------------------------{axirandom mask}begin------------------------//
+wire [15:0] led_r_n;
+assign led_r_n = {~led[0],~led[1],~led[2],~led[3],
+                  ~led[4],~led[5],~led[6],~led[7],
+				  ~led[8],~led[9],~led[10],~led[11],
+				  ~led[12],~led[13],~led[14],~led[15]};
+
+reg [22:0] pseudo_random_23;
+always @ (posedge aclk)
+begin
+   if (!aresetn || btn_step_data[0])
+       pseudo_random_23 <= simu_flag ? `RANDOM_SEED : {7'b1010101,led_r_n};
+   else
+       pseudo_random_23 <= {pseudo_random_23[21:0],pseudo_random_23[22] ^ pseudo_random_23[17]};
+end
+assign ram_random_mask = pseudo_random_23[10] & pseudo_random_23[20];
+
+//---------------------------{axirandom mask}end-------------------------//
+
 //--------------------------------{led}begin-----------------------------//
 //led display
 //led_data[31:0]
 wire write_led = conf_we & (conf_addr[15:0]==`LED_ADDR);
-assign led = led_data[15:0];
-always @(posedge clk)
+//for lab6
+//assign led = led_data[15:0];
+assign led = {{2{switch[7]}},{2{switch[6]}},{2{switch[5]}},{2{switch[4]}},
+              {2{switch[3]}},{2{switch[2]}},{2{switch[1]}},{2{switch[0]}}};
+always @(posedge aclk)
 begin
-    if(!resetn)
+    if(!aresetn)
     begin
         led_data <= 32'h0;
     end
@@ -338,9 +487,9 @@ reg [ 3:0] state_count;
 wire key_start = (state==3'b000) && !(&btn_key_row);
 wire key_end   = (state==3'b111) &&  (&btn_key_row);
 wire key_sample= key_count[19];
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if(!resetn)
+    if(!aresetn)
     begin
         key_flag <= 1'd0;
     end
@@ -353,7 +502,7 @@ begin
         key_flag <= 1'b1;
     end
 
-    if(!resetn || !key_flag)
+    if(!aresetn || !key_flag)
     begin
         key_count <= 20'd0;
     end
@@ -363,9 +512,9 @@ begin
     end
 end
 
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if(!resetn || state_count[3])
+    if(!aresetn || state_count[3])
     begin
         state_count <= 4'd0;
     end
@@ -375,9 +524,9 @@ begin
     end
 end
 
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if(!resetn)
+    if(!aresetn)
     begin
         state <= 3'b000;
     end
@@ -401,8 +550,8 @@ assign btn_key_col = (state == 3'b000) ? 4'b0000:
                      (state == 3'b100) ? 4'b0111:
                                          4'b0000;
 wire [15:0] btn_key_tmp;
-always @(posedge clk) begin
-    if(!resetn) begin
+always @(posedge aclk) begin
+    if(!aresetn) begin
         btn_key_r   <= 16'd0;
     end
     else if(next_state==3'b000)
@@ -445,9 +594,9 @@ reg [19:0] step0_count;
 wire step0_start = btn_step0_r && !btn_step[0];
 wire step0_end   = !btn_step0_r && btn_step[0];
 wire step0_sample= step0_count[19];
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if(!resetn)
+    if(!aresetn)
     begin
         step0_flag <= 1'd0;
     end
@@ -460,7 +609,7 @@ begin
         step0_flag <= 1'b1;
     end
 
-    if(!resetn || !step0_flag)
+    if(!aresetn || !step0_flag)
     begin
         step0_count <= 20'd0;
     end
@@ -469,7 +618,7 @@ begin
         step0_count <= step0_count + 1'b1;
     end
 
-    if(!resetn)
+    if(!aresetn)
     begin
         btn_step0_r <= 1'b1;
     end
@@ -486,9 +635,9 @@ reg [19:0] step1_count;
 wire step1_start = btn_step1_r && !btn_step[1];
 wire step1_end   = !btn_step1_r && btn_step[1];
 wire step1_sample= step1_count[19];
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if(!resetn)
+    if(!aresetn)
     begin
         step1_flag <= 1'd0;
     end
@@ -501,7 +650,7 @@ begin
         step1_flag <= 1'b1;
     end
 
-    if(!resetn || !step1_flag)
+    if(!aresetn || !step1_flag)
     begin
         step1_count <= 20'd0;
     end
@@ -510,7 +659,7 @@ begin
         step1_count <= step1_count + 1'b1;
     end
 
-    if(!resetn)
+    if(!aresetn)
     begin
         btn_step1_r <= 1'b1;
     end
@@ -528,9 +677,9 @@ wire write_led_rg0 = conf_we & (conf_addr[15:0]==`LED_RG0_ADDR);
 wire write_led_rg1 = conf_we & (conf_addr[15:0]==`LED_RG1_ADDR);
 assign led_rg0 = led_rg0_data[1:0];
 assign led_rg1 = led_rg1_data[1:0];
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if(!resetn)
+    if(!aresetn)
     begin
         led_rg0_data <= 32'h0;
     end
@@ -539,7 +688,7 @@ begin
         led_rg0_data <= conf_wdata[31:0];
     end
 
-    if(!resetn)
+    if(!aresetn)
     begin
         led_rg1_data <= 32'h0;
     end
@@ -554,9 +703,9 @@ end
 //digital number display
 //num_data[31:0]
 wire write_num = conf_we & (conf_addr[15:0]==`NUM_ADDR);
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if(!resetn)
+    if(!aresetn)
     begin
         num_data <= 32'h0;
     end
@@ -568,9 +717,9 @@ end
 
 
 reg [19:0] count;
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if(!resetn)
+    if(!aresetn)
     begin
         count <= 20'd0;
     end
@@ -581,9 +730,9 @@ begin
 end
 //scan data
 reg [3:0] scan_data;
-always @ ( posedge clk )  
+always @ ( posedge aclk )  
 begin
-    if ( !resetn )
+    if ( !aresetn )
     begin
         scan_data <= 32'd0;  
         num_csn   <= 8'b1111_1111;
@@ -614,9 +763,9 @@ begin
     end
 end
 
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    if ( !resetn )
+    if ( !aresetn )
     begin
         num_a_g <= 7'b0000000;
     end

@@ -3,6 +3,11 @@
 module execute_stage(
     input  wire        clk,
     input  wire        resetn,
+    output wire        stop,
+    input  wire        soft_int,
+//data ram 
+    input  wire        data_addr_ok,
+    input  wire        data_data_ok,
 //data used in this stage
     input  wire [3:0]  de_aluop,
     input  wire [31:0] de_alusrc1,
@@ -12,6 +17,7 @@ module execute_stage(
     input  wire        de_is_signed,
     input  wire [31:0] de_MD_src1,
     input  wire [31:0] de_MD_src2,
+    input  wire        de_mem_en, //new
 //data from de stage not used in this stage
     input  wire        de_reg_en,
     input  wire        de_mem_read,
@@ -99,7 +105,9 @@ assign CP0_BadVaddr         = (de_exec_vector[4])? de_pc : alu_result;
 
 assign execption            = (|exe_exec_vector) & (~CP0_STATUS_EXL) & (~exe_busy);
 
-assign CP0_EPC              = (delay_slot)? de_pc - 32'd4 : de_pc;
+assign CP0_EPC              = (delay_slot)? de_pc - 32'd4 : 
+                              (soft_int)?   de_pc  + 32'd4:
+                              de_pc;
 
 assign CP0_CAUSE_ExcCode    = (exe_exec_vector[5]) ? 5'h00:
                               (exe_exec_vector[4]) ? ((exec_BadStore) ? 5'h05 : 5'h04):
@@ -217,16 +225,41 @@ assign exe_mem_wdata = (de_store_type == type_SW) ? de_store_rt_data :
                        (de_store_type == type_SH) ? SH_mem_wdata     :
                        (de_store_type == type_SWL)? SWL_mem_wdata    :
                        (de_store_type == type_SWR)? SWR_mem_wdata    : 32'b0;
+reg exe_mem_en;
 
 always @(posedge clk) begin
-    alu_result_reg <= alu_result;
-    exe_reg_en     <= de_reg_en &(~execption);
-    exe_reg_waddr  <= de_reg_waddr;
-    exe_mem_read   <= de_mem_read;
-    exe_load_type  <= de_load_type;
-    exe_load_rt_data <= de_load_rt_data;
+if(~resetn) begin
+alu_result_reg   <= 'b0;
+exe_reg_en       <= 'b0;
+exe_reg_waddr    <= 'b0;
+exe_mem_read     <= 'b0;
+exe_load_type    <= 'b0;
+exe_load_rt_data <= 'b0;
+exe_mem_en       <= 'b0;
 end
+else if(stop) begin
+    alu_result_reg   <= alu_result_reg;
+    exe_reg_en       <= exe_reg_en;
+    exe_reg_waddr    <= exe_reg_waddr;
+    exe_mem_read     <= exe_mem_read;
+    exe_load_type    <= exe_load_type;
+    exe_load_rt_data <= exe_load_rt_data;
+    exe_mem_en       <= exe_mem_en;
+end
+else begin
+    alu_result_reg   <= alu_result;
+    exe_reg_en       <= de_reg_en &(~execption);
+    exe_reg_waddr    <= de_reg_waddr;
+    exe_mem_read     <= de_mem_read;
+    exe_load_type    <= de_load_type;
+    exe_load_rt_data <= de_load_rt_data;
+    exe_mem_en       <= de_mem_en&(~execption);
+end
+end
+wire super_dememen;
+assign super_dememen = de_mem_en & (~execption);
 
+assign stop = (super_dememen & ~data_addr_ok) | (exe_mem_en & ~data_data_ok);
 
 
 endmodule //execute_stage

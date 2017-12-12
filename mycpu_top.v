@@ -2,17 +2,27 @@ module mycpu_top(
     input  wire        clk,
     input  wire        resetn,            //low active
 
-    output wire        inst_sram_en,
-    output wire [ 3:0] inst_sram_wen,
-    output wire [31:0] inst_sram_addr,
-    output wire [31:0] inst_sram_wdata,
-    input  wire [31:0] inst_sram_rdata,
+    //inst ram
+    output wire        inst_req,
+    output wire        inst_wr,
+    output wire [1:0]  inst_size,
+    output wire [31:0] inst_addr,
+    output wire [31:0] inst_wdata,
+    input  wire        inst_addr_ok,
+    input  wire        inst_data_ok,
+    input  wire [31:0] inst_rdata,
+
     input  wire [15:0] btn_key_r,
-    output wire        data_sram_en,
-    output wire [ 3:0] data_sram_wen,
-    output wire [31:0] data_sram_addr,
-    output wire [31:0] data_sram_wdata,
-    input  wire [31:0] data_sram_rdata, //this is for wb stage 
+
+    //data ram
+    output wire        data_req,
+    output wire        data_wr,
+    output wire [3:0]  data_size,
+    output wire [31:0] data_addr,
+    output wire [31:0] data_wdata,
+    input  wire        data_addr_ok,
+    input  wire        data_data_ok,
+    input  wire [31:0] data_rdata,
 
     output wire [31:0] debug_wb_pc,
     output wire [3:0] debug_wb_rf_wen,
@@ -97,10 +107,14 @@ wire [31:0] wb_reg_wdata;
 wire wb_MD_complete;
 wire [63:0] wb_MD_result;
 
+wire  inst_MEM;
+wire  stop;
+wire super_execption;
 // inst_sram is now a ROM
-assign inst_sram_wen   = 4'b0;
-assign inst_sram_wdata = 32'b0;
-
+assign inst_req = 1'b1;
+assign inst_wr = 1'b0;
+assign inst_size = 2'b11; //to do
+assign inst_wdata = 32'b0;
 
 //PC_calculator
 PC_calculator PC_calculator
@@ -110,6 +124,8 @@ PC_calculator PC_calculator
     .stall          (stall          ),
     .execption      (execption      ),
     .return         (return         ),
+    .inst_MEM       (inst_MEM       ),
+    .super_execption (super_execption),
 //control signals from de stage
     .is_b           (de_is_b        ), 
     .is_j           (de_is_j        ), 
@@ -122,9 +138,11 @@ PC_calculator PC_calculator
     .de_rs_data     (de_rs_data     ), 
     .de_rt_data     (de_rt_data     ),
 //outputs
-    .inst_sram_en   (inst_sram_en   ),
-    .next_pc        (inst_sram_addr ),
-    .current_pc		(current_pc     )
+    .pc        (inst_addr      ),
+    .current_pc		(current_pc     ),
+    .inst_addr_ok   (inst_addr_ok   ),
+    .inst_data_ok   (inst_data_ok),
+    .stop           (stop)
     );
 
 
@@ -134,15 +152,19 @@ fetch_stage fetch_stage
     .clk            (clk            ), 
     .resetn         (resetn         ),
     .stall          (stall          ),
-    .execption      (execption      ),
+    .execption      (super_execption      ),
     .return         (return         ),
 //inputs from inst_ram and pc_caculator
-    .inst_sram_rdata(inst_sram_rdata), 
-    .inst_sram_raddr (current_pc     ), 
+    .inst_rdata     (inst_rdata     ), 
+    .inst_addr      (current_pc     ), 
+    .inst_data_ok   (inst_data_ok   ),
 //data to de stage                            
     .fe_pc          (fe_pc          ), 
-    .fe_inst        (fe_inst        )
+    .fe_inst        (fe_inst        ),
+    .stop           (stop)
     );
+    
+    wire soft_int;
 CP0_regs CP0_coprocessor
     (
     .clk            (clk            ),
@@ -152,8 +174,9 @@ CP0_regs CP0_coprocessor
     .wdata          (CP0_wdata      ),
     .raddr          (CP0_raddr      ),
     .rdata          (CP0_rdata      ),
-    .execption      (execption      ),
+    .execption      (execption     ),
     .return         (return),
+    .soft_int       (soft_int),
     .CP0_CAUSE_ExcCode(CP0_CAUSE_ExcCode ),
     .CP0_EPC        (CP0_EPC        ),
     //.HW_IP          (               ),
@@ -208,6 +231,7 @@ decode_stage de_stage
     .clk            (clk            ),
     .resetn         (resetn         ),
     .stall          (stall          ),
+    .inst_addr_ok   (inst_addr_ok),
 //data from fe stage              
     .fe_inst        (fe_inst        ), 
     .fe_pc          (fe_pc          ),
@@ -255,12 +279,14 @@ decode_stage de_stage
     .de_load_type   (de_load_type   ),
     .de_load_rt_data(de_load_rt_data),
 //siganl for execption and return
-    .execption      (execption      ),
+    .execption      (super_execption     ),
     .return         (return         ),
     .de_exec_vector (de_exec_vector ),
     .de_pc          (de_pc          ),
     .delay_slot     (delay_slot     ),
-    .possible_overflow (possible_overflow)
+    .possible_overflow (possible_overflow),
+    .stop           (stop           ),
+    .inst_MEM       (inst_MEM       )
     );
 
 
@@ -269,6 +295,7 @@ execute_stage exe_stage
     (
     .clk            (clk            ), 
     .resetn         (resetn         ), 
+    .soft_int       (soft_int),
 //used in this stage                          
     .de_aluop       (de_aluop       ), 
     .de_alusrc1     (de_alusrc1     ), 
@@ -312,7 +339,11 @@ execute_stage exe_stage
     .delay_slot       (delay_slot       ),
     .possible_overflow(possible_overflow),
     .interupt         (interupt         ),
-    .CP0_STATUS_EXL   (CP0_STATUS_EXL   )
+    .CP0_STATUS_EXL   (CP0_STATUS_EXL   ),
+    .stop             (stop),
+    .data_data_ok     (data_data_ok),
+    .data_addr_ok     (data_addr_ok),
+    .de_mem_en        (de_mem_en)
     );
 
 
@@ -321,17 +352,18 @@ memory_stage mem_stage
     (
     .clk                (clk            ), 
     .resetn             (resetn         ),
+    .execption          (execption      ),
 //data from de stage and exe stage
     .de_mem_en          (de_mem_en      ),                       
     .exe_mem_wen        (exe_mem_wen    ),
-    .exe_mem_waddr      (alu_result     ), 
+    .exe_mem_addr       (alu_result     ), 
     .exe_mem_wdata      (exe_mem_wdata  ),
-    
-//outputs, there is no registers in this stage 
-    .data_sram_en       (data_sram_en   ),
-    .data_sram_wen      (data_sram_wen  ),
-    .data_sram_addr     (data_sram_addr ),
-    .data_sram_wdata    (data_sram_wdata)
+    .data_req(data_req),
+    .data_wr(data_wr),
+    .data_size(data_size),
+    .data_addr(data_addr),
+    .data_wdata (data_wdata) 
+
     );
 
 //wb
@@ -339,12 +371,13 @@ writeback_stage wb_stage
     (
     .clk            (clk             ), 
     .resetn         (resetn          ),
+    .stop           (stop            ),
 //data from exe stage and mem stage
     .exe_reg_en     (exe_reg_en     ),
     .exe_reg_waddr  (exe_reg_waddr  ),
     .exe_mem_read   (exe_mem_read   ),
     .alu_result_reg (alu_result_reg ),
-    .mem_rdata      (data_sram_rdata),
+    .mem_rdata      (data_rdata     ),
     .exe_MD_complete(exe_MD_complete ),
     .exe_MD_result  (exe_MD_result  ),
     .exe_load_type  (exe_load_type  ),

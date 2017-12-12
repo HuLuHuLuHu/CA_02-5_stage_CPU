@@ -2,6 +2,9 @@ module decode_stage(
     input  wire        clk,
     input  wire        resetn,
     input  wire        stall,
+    input  wire        stop,
+    output wire        inst_MEM,
+    input  wire        inst_addr_ok,
 //data from fe stage
     input  wire [31:0] fe_inst,
     input  wire [31:0] fe_pc,
@@ -26,9 +29,9 @@ module decode_stage(
     output wire        de_is_b,
     output wire        de_is_j,  
     output wire        de_is_jr,
-    output wire [3:0]  de_b_type,     
+    output wire  [3:0]  de_b_type,     
     output wire [15:0] de_b_offset, 
-    output wire [25:0] de_j_index,   
+    output wire  [25:0] de_j_index,   
 //signal for exe stage
     output reg  [3:0]  de_aluop,
     output reg  [31:0] de_alusrc1,
@@ -133,6 +136,8 @@ wire inst_MF;       assign inst_MF    = (inst_MFLO | inst_MFHI | inst_MFC0 );
 wire inst_SYSCALL;   assign inst_SYSCALL = (inst_R & FUNC == 6'b001100);
 wire inst_ERET;      assign inst_ERET    = (fe_inst == 32'b01000010000000000000000000011000);
 wire inst_BREAK;     assign inst_BREAK   = (inst_R & FUNC == 6'b001101);
+//mem
+
 //a J-type or B-type inst
 wire inst_JB;       assign inst_JB    = inst_J   | inst_JAL   |inst_JR    | inst_BEQ  |
                                         inst_BNE | inst_BGTZ  |inst_BLEZ  | inst_BGEZ |
@@ -185,6 +190,7 @@ parameter alu_LUI  = 4'b1010;
 parameter alu_XOR  = 4'b1011;
 parameter alu_NOR  = 4'b1100;
 
+assign inst_MEM     = inst_LOAD | inst_STORE;
 //data to regfiles
 assign fe_rs_addr = fe_inst[25:21];
 
@@ -218,9 +224,36 @@ assign return = inst_ERET;
 //     5        4           3          2          1        0
 reg reg_JB;
 always @(posedge clk) begin
+
+if(~resetn) begin
+de_pc             <= 'b0;
+reg_JB            <= 'b0;
+delay_slot        <= 'b0;
+possible_overflow <= 'b0;
+de_exec_vector[5] <= 'b0;
+de_exec_vector[4] <= 'b0;
+de_exec_vector[3] <= 'b0; //what to fill?
+de_exec_vector[2] <= 'b0;
+de_exec_vector[1] <= 'b0;
+de_exec_vector[0] <= 'b0;
+end
+
+else if(stop) begin
+  de_pc             <= de_pc;
+  reg_JB            <= reg_JB;
+  delay_slot        <= delay_slot;
+  possible_overflow <= possible_overflow;
+  de_exec_vector[5] <= de_exec_vector[5];
+  de_exec_vector[4] <= de_exec_vector[4];
+  de_exec_vector[3] <= de_exec_vector[3]; //what to fill?
+  de_exec_vector[2] <= de_exec_vector[2];
+  de_exec_vector[1] <= de_exec_vector[1];
+  de_exec_vector[0] <= de_exec_vector[0];     
+  end  
+else begin
   de_pc             <= fe_pc;
-  reg_JB            <= inst_JB;
-  delay_slot        <= reg_JB;
+  if(inst_addr_ok)   reg_JB  <= inst_JB;
+  if(inst_addr_ok)  delay_slot        <= reg_JB;
   possible_overflow <= inst_ADDI | inst_ADD |inst_SUB;
   de_exec_vector[5] <= 0;
   de_exec_vector[4] <= ~(fe_pc[1:0] == 2'b00);
@@ -228,6 +261,7 @@ always @(posedge clk) begin
   de_exec_vector[2] <= 0;
   de_exec_vector[1] <= inst_SYSCALL;
   de_exec_vector[0] <= inst_BREAK; 
+  end
 end
 
 
@@ -237,6 +271,10 @@ assign de_rs_addr = (inst_SLL| inst_SRA | inst_SRL | inst_JAL)    ? 5'd0 : fe_rs
 
 assign de_rt_addr = (inst_R  | inst_BNE | inst_BEQ | inst_STORE | inst_MTC0) ? fe_rt_addr : 5'd0;
 
+wire [25:0] de_j_index_temp;
+wire [15:0] de_b_offset_temp;
+wire de_is_jr_temp,de_is_j_temp,de_is_b_temp;
+wire [3:0] de_b_type_temp;
 //data for pc caculator
 assign de_b_offset= fe_inst[15:0];
 
@@ -244,12 +282,12 @@ assign de_j_index = fe_inst[25:0];
 
 assign de_is_jr   = (inst_JR | inst_JALR) & (~execption);
 
-assign de_is_j    = (inst_J  | inst_JAL )&(~execption);
+assign de_is_j   = (inst_J  | inst_JAL )&(~execption);
 
 assign de_is_b    = (inst_BEQ  | inst_BNE  | inst_BGEZ   | inst_BGTZ  |
                      inst_BLEZ | inst_BLTZ | inst_BLTZAL | inst_BGEZAL ) & (~execption);
 
-assign de_b_type  = (inst_BEQ   ) ? type_BEQ :
+assign de_b_type = (inst_BEQ   ) ? type_BEQ :
                     (inst_BNE   ) ? type_BNE : 
                     (inst_BGEZ  ) ? type_BGEZ:
                     (inst_BGTZ  ) ? type_BGTZ:
@@ -258,7 +296,16 @@ assign de_b_type  = (inst_BEQ   ) ? type_BEQ :
                     (inst_BLTZAL) ? type_BLTZAL:
                     (inst_BGEZAL) ? type_BGEZAL:
                      4'b0000;
-
+/*
+always @(posedge clk) begin
+de_is_b <= de_is_b_temp;
+de_is_j <= de_is_j_temp;
+de_is_jr <= de_is_jr_temp;
+de_b_type <=   de_b_type_temp;
+de_b_offset <= de_b_offset_temp;
+de_j_index <= de_j_index_temp;
+end
+*/
 //data for exe stage
 wire [31:0] sa_extend;
 wire [31:0] signed_extend;
@@ -270,9 +317,9 @@ wire [31:0] alusrc2_temp;
 
 wire [2:0] store_type_temp;
 
-assign de_mult_en      = (inst_MULT | inst_MULTU) & (~execption) ;
+assign de_mult_en      = (inst_MULT | inst_MULTU) & (~execption) & (~stop);
 
-assign de_div_en       = (inst_DIV  | inst_DIVU) & (~execption);
+assign de_div_en       = (inst_DIV  | inst_DIVU) & (~execption) & (~stop) ;
 
 assign de_is_signed    = inst_MULT | inst_DIV;
 
@@ -321,10 +368,24 @@ assign store_type_temp = (inst_SW) ? type_SW:
                          (inst_SWR)? type_SWR:3'b111;
 
 always @(posedge clk) begin
+if (~resetn) begin
+   de_aluop   <= 'b0;
+   de_alusrc1 <= 'b0;
+   de_alusrc2 <= 'b0;
+   de_store_type <= 'b0;
+end
+else if(stop) begin
+    de_aluop   <= de_aluop;
+    de_alusrc1 <= de_alusrc1;
+    de_alusrc2 <= de_alusrc2;
+    de_store_type <= de_store_type;
+    end
+else begin
     de_aluop   <= aluop_temp;
     de_alusrc1 <= alusrc1_temp;
     de_alusrc2 <= alusrc2_temp;
     de_store_type <= store_type_temp;
+    end
 end
 
 
@@ -334,8 +395,18 @@ wire mem_en_temp;
 assign mem_en_temp  = (~stall) & (~execption) & (inst_LOAD  | inst_STORE );
 
 always @(posedge clk) begin
+if (~resetn) begin
+    de_mem_en  <= 'b0;
+    de_store_rt_data <= 'b0;
+    end
+else if(stop) begin
+    de_mem_en    <= de_mem_en; 
+    de_store_rt_data <= de_store_rt_data;
+    end
+else begin
     de_mem_en    <= mem_en_temp; 
     de_store_rt_data <= de_rt_data;
+    end
 end
 
 //data for wb stage
@@ -370,11 +441,27 @@ assign load_type_temp = (inst_LW) ? type_LW:
                         (inst_LWR)? type_LWR:3'b111;
 
 always @(posedge clk) begin
+if(~resetn) begin
+ de_reg_en    <= 'b0;
+   de_mem_read  <= 'b0;
+   de_reg_waddr <= 'b0;
+   de_load_type <= 'b0;
+   de_load_rt_data <= 'b0;
+end
+ else if(stop) begin
+    de_reg_en    <= de_reg_en;
+    de_mem_read  <= de_mem_read;
+    de_reg_waddr <= de_reg_waddr;
+    de_load_type <= de_load_type;
+    de_load_rt_data <= de_load_rt_data;
+    end
+else begin
     de_reg_en    <= reg_en_temp;
     de_mem_read  <= mem_read_temp;
     de_reg_waddr <= reg_waddr_temp;
     de_load_type <= load_type_temp;
     de_load_rt_data <= load_rt_data_temp;
+    end
 end
 
 
