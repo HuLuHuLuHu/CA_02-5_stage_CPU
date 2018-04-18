@@ -25,3 +25,6 @@ DMIPS/MHz    : 1.094
 
 ## v5.0
 11.18 MyCPU: Now I can answer the interrupt and exception!
+
+## v6.0
+Now the CPU support AXI Protocol.
